@@ -13,9 +13,11 @@ from pydantic import Field, field_validator, model_validator
 
 class Provider(str, Enum):
     """Supported LLM providers."""
-    
+
     OPENAI = "openai"
     AZURE_OPENAI = "azure_openai"
+    ANTHROPIC = "anthropic"
+    GOOGLE = "google"
     LOCAL = "local"
 
 
@@ -72,6 +74,13 @@ class AppSettings(BaseSettings):
     
     # Memory settings
     max_conversation_history: int = Field(default=100, ge=1)
+    memory_persist_directory: str = Field(default="./memory")
+    vector_db_directory: str = Field(default="./memory/vector_db")
+    use_vector_db: bool = Field(default=True)
+
+    # UI settings
+    default_search_results: int = Field(default=5, ge=1, le=50)
+    max_pagination_limit: int = Field(default=50, ge=1, le=200)
         
     @field_validator("openai_api_key", "azure_openai_api_key")
     @classmethod
@@ -119,6 +128,10 @@ class AppSettings(BaseSettings):
             return self.openai_api_key or os.getenv("OPENAI_API_KEY")
         elif provider == Provider.AZURE_OPENAI:
             return self.azure_openai_api_key or os.getenv("AZURE_OPENAI_API_KEY")
+        elif provider == Provider.ANTHROPIC:
+            return self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
+        elif provider == Provider.GOOGLE:
+            return self.google_api_key or os.getenv("GOOGLE_API_KEY")
         return None
     
     def is_provider_configured(self, provider: Provider) -> bool:
@@ -131,6 +144,10 @@ class AppSettings(BaseSettings):
                 self.azure_openai_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
                 self.azure_openai_deployment or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
             ])
+        elif provider == Provider.ANTHROPIC:
+            return (self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")) is not None
+        elif provider == Provider.GOOGLE:
+            return (self.google_api_key or os.getenv("GOOGLE_API_KEY")) is not None
         return False
 
     # Re-validation on attribute assignment for tests expecting runtime validation

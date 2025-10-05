@@ -22,9 +22,10 @@ if str(src_dir) not in sys.path:
 from semantic_kernel_ui.config import AppSettings, ConversationStyle, Provider
 from semantic_kernel_ui.core import AgentManager, KernelManager
 from semantic_kernel_ui.core.agent_manager import AgentRole
+from semantic_kernel_ui.memory import MemoryManager
 from semantic_kernel_ui.plugins import (
     CalculatorPlugin,
-    FileOperationsPlugin,
+    FileIndexPlugin,
     PersonalityPlugin,
     WebSearchPlugin,
 )
@@ -72,6 +73,18 @@ class SemanticKernelApp:
             
         if "plugins" not in st.session_state:
             st.session_state.plugins = {}
+
+        if "use_streaming" not in st.session_state:
+            st.session_state.use_streaming = True
+
+        if "dark_mode" not in st.session_state:
+            st.session_state.dark_mode = True
+
+        if "memory_manager" not in st.session_state:
+            st.session_state.memory_manager = MemoryManager(
+                persist_directory=self.settings.memory_persist_directory,
+                use_vector_db=self.settings.use_vector_db
+            )
     
     def run(self) -> None:
         """Run the Streamlit application."""
@@ -90,6 +103,52 @@ class SemanticKernelApp:
                     layout=self.settings.layout,
                     initial_sidebar_state="expanded",
                 )
+
+            # Add custom CSS for better code highlighting and dark mode
+            dark_mode = st.session_state.get("dark_mode", True)
+            bg_color = "#0e1117" if dark_mode else "#ffffff"
+            text_color = "#fafafa" if dark_mode else "#262730"
+            secondary_bg = "#262730" if dark_mode else "#f0f2f6"
+            code_bg_light = "#2d2d2d" if dark_mode else "#f0f0f0"
+            code_text = "#d4d4d4" if dark_mode else "#1e1e1e"
+
+            st.markdown(f"""
+                <style>
+                /* Theme styling */
+                .stApp {{
+                    background-color: {bg_color};
+                    color: {text_color};
+                }}
+
+                /* Better code block styling */
+                .stMarkdown code {{
+                    background-color: {code_bg_light};
+                    color: {code_text};
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+                    font-size: 0.9em;
+                }}
+
+                .stMarkdown pre {{
+                    background-color: #1e1e1e;
+                    padding: 16px;
+                    border-radius: 8px;
+                    overflow-x: auto;
+                }}
+
+                .stMarkdown pre code {{
+                    background-color: transparent;
+                    color: #d4d4d4;
+                    padding: 0;
+                }}
+
+                /* Sidebar styling */
+                [data-testid="stSidebar"] {{
+                    background-color: {secondary_bg};
+                }}
+                </style>
+            """, unsafe_allow_html=True)
         except Exception as e:  # pragma: no cover - defensive
             logger.debug(f"Page config skipped: {e}")
     
@@ -97,6 +156,19 @@ class SemanticKernelApp:
         """Render the configuration sidebar."""
         with st.sidebar:
             st.header("Configuration")
+
+            # Dark mode toggle at the top
+            dark_mode = st.toggle(
+                "Dark Mode" if st.session_state.dark_mode else "Light Mode",
+                value=st.session_state.dark_mode,
+                help="Toggle between dark and light themes"
+            )
+            if dark_mode != st.session_state.dark_mode:
+                st.session_state.dark_mode = dark_mode
+                st.rerun()
+
+            st.markdown("---")
+
             self._render_mode_selection()
             self._render_api_configuration()
             self._render_model_settings()
@@ -118,12 +190,12 @@ class SemanticKernelApp:
     def _render_env_status(self) -> None:
         """Render environment configuration status."""
         st.write("**Configuration Status:**")
-        
+
         # Check OpenAI
         openai_key = bool(self.settings.openai_api_key)
         status_icon = "Ready" if openai_key else "Not set"
         st.write(f"**OpenAI:** {status_icon}")
-        
+
         # Check Azure
         azure_complete = all([
             self.settings.azure_openai_api_key,
@@ -132,12 +204,19 @@ class SemanticKernelApp:
         ])
         status_icon = "Ready" if azure_complete else "Not set"
         st.write(f"**Azure OpenAI:** {status_icon}")
-        
+
+        # Check Anthropic
+        anthropic_key = bool(self.settings.anthropic_api_key)
+        status_icon = "Ready" if anthropic_key else "Not set"
+        st.write(f"**Anthropic Claude:** {status_icon}")
+
         # Show which provider will be used
         if openai_key:
             st.info("**Active:** OpenAI")
         elif azure_complete:
             st.info("**Active:** Azure OpenAI")
+        elif anthropic_key:
+            st.info("**Active:** Anthropic Claude")
         else:
             st.warning("No providers configured")
 
@@ -152,13 +231,17 @@ class SemanticKernelApp:
         if self.settings.openai_api_key:
             st.markdown("---")
             self._render_openai_config()
-        
+
         if self.settings.azure_openai_api_key:
             st.markdown("---")
             self._render_azure_config()
-            
+
+        if self.settings.anthropic_api_key:
+            st.markdown("---")
+            self._render_anthropic_config()
+
         # If no providers are configured, show setup help
-        if not self.settings.openai_api_key and not self.settings.azure_openai_api_key:
+        if not any([self.settings.openai_api_key, self.settings.azure_openai_api_key, self.settings.anthropic_api_key]):
             st.markdown("---")
             st.error(" No API providers configured")
             with st.expander("� Setup Instructions", expanded=True):
@@ -191,9 +274,29 @@ class SemanticKernelApp:
     
     def _render_azure_config(self) -> None:
         """Render Azure OpenAI configuration - secure environment-based."""
-        st.write("** Azure OpenAI**")
-        st.success(" Ready")
-        st.caption(f" {self.settings.azure_openai_deployment}")
+        st.write("**Azure OpenAI**")
+        st.success("Ready")
+        st.caption(f"Deployment: {self.settings.azure_openai_deployment}")
+
+    def _render_anthropic_config(self) -> None:
+        """Render Anthropic configuration - secure environment-based."""
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.write("**Anthropic Claude**")
+            st.success("Ready")
+
+        with col2:
+            # Model selection
+            model = st.selectbox(
+                "Model",
+                ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
+                index=0,
+                help="Select the Anthropic model to use",
+                key="anthropic_model",
+                label_visibility="collapsed"
+            )
+            st.session_state.anthropic_model = model
     
     def _render_model_settings(self) -> None:
         """Render model parameter settings."""
@@ -223,7 +326,41 @@ class SemanticKernelApp:
             # Store in session state
             st.session_state.temperature = temperature
             st.session_state.max_tokens = max_tokens
+
+            # Streaming toggle
+            use_streaming = st.checkbox(
+                "Enable Streaming Responses",
+                value=st.session_state.use_streaming,
+                help="Stream responses token-by-token for better UX"
+            )
+            st.session_state.use_streaming = use_streaming
+
+            # Personality selection
+            st.markdown("---")
+            personalities = ["default", "friendly", "professional", "creative", "technical", "casual"]
+            personality = st.selectbox(
+                "Response Personality",
+                personalities,
+                index=personalities.index(st.session_state.get("personality", "default")),
+                help="Adjust the tone and style of responses"
+            )
+            st.session_state.personality = personality
     
+    def _get_personality_system_message(self) -> str:
+        """Generate system message based on selected personality."""
+        personality = st.session_state.get("personality", "default")
+
+        personality_prompts = {
+            "default": "",
+            "friendly": "You are a friendly and enthusiastic assistant. Use warm, encouraging language and be supportive. Feel free to use casual language while remaining helpful.",
+            "professional": "You are a professional assistant. Maintain a formal, business-appropriate tone. Be concise, precise, and focus on delivering accurate information efficiently.",
+            "creative": "You are a creative assistant. Think outside the box, offer imaginative solutions, and present ideas in engaging ways. Don't be afraid to use analogies and metaphors.",
+            "technical": "You are a technical expert. Provide detailed, accurate technical information. Use proper terminology, include code examples when relevant, and explain complex concepts thoroughly.",
+            "casual": "You are a casual, laid-back assistant. Keep things simple and conversational. Use everyday language and don't be overly formal."
+        }
+
+        return personality_prompts.get(personality, "")
+
     def _render_action_buttons(self) -> None:
         """Render action buttons."""
         st.markdown("---")
@@ -247,13 +384,16 @@ class SemanticKernelApp:
                 # Auto-detect provider based on available environment variables
                 provider = None
                 
-                # Priority: OpenAI -> Azure OpenAI
+                # Priority: OpenAI -> Azure OpenAI -> Anthropic
                 if self.settings.openai_api_key:
                     provider = Provider.OPENAI
-                    st.info(" Auto-detected provider: **OpenAI**")
+                    st.info("Auto-detected provider: **OpenAI**")
                 elif self.settings.azure_openai_api_key:
                     provider = Provider.AZURE_OPENAI
-                    st.info(" Auto-detected provider: **Azure OpenAI**")
+                    st.info("Auto-detected provider: **Azure OpenAI**")
+                elif self.settings.anthropic_api_key:
+                    provider = Provider.ANTHROPIC
+                    st.info("Auto-detected provider: **Anthropic Claude**")
                 
                 if not provider:
                     st.error(" No API provider configured. Please set up your credentials in the `.env` file.")
@@ -285,8 +425,15 @@ class SemanticKernelApp:
                         model="gpt-4",  # Model determined by deployment
                         **config_kwargs
                     )
+                elif provider == Provider.ANTHROPIC:
+                    model = getattr(st.session_state, 'anthropic_model', 'claude-3-5-sonnet-20241022')
+                    success = st.session_state.kernel_manager.configure(
+                        provider=provider,
+                        model=model,
+                        **config_kwargs
+                    )
                 else:
-                    st.error(f" Unsupported provider: {provider}")
+                    st.error(f"Unsupported provider: {provider}")
                     return
                 
                 if success:
@@ -419,31 +566,75 @@ class SemanticKernelApp:
         """Handle user message in single agent mode."""
         # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
-        
+
         with st.chat_message("user"):
             st.markdown(prompt)
-        
+
         # Get AI response
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                try:
-                    response = asyncio.run(
-                        st.session_state.kernel_manager.get_response(prompt)
-                    )
-                    st.markdown(response)
+            try:
+                # Get personality system message
+                system_message = self._get_personality_system_message()
+
+                if st.session_state.use_streaming:
+                    # Streaming response
+                    response_placeholder = st.empty()
+                    full_response = ""
+
+                    async def stream_response():
+                        nonlocal full_response
+                        async for chunk in st.session_state.kernel_manager.get_streaming_response(
+                            prompt,
+                            system_message=system_message
+                        ):
+                            full_response += chunk
+                            response_placeholder.markdown(full_response + "▌")
+                        response_placeholder.markdown(full_response)
+
+                    asyncio.run(stream_response())
                     st.session_state.messages.append({
-                        "role": "assistant", 
-                        "content": response
+                        "role": "assistant",
+                        "content": full_response
                     })
-                    
-                except Exception as e:
-                    error_msg = f"Error: {str(e)}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({
-                        "role": "assistant", 
-                        "content": error_msg
-                    })
-                    logger.error(f"Error getting response: {e}")
+
+                    # Auto-save to memory
+                    if st.session_state.get("auto_save_memory", True):
+                        st.session_state.memory_manager.save_conversation(
+                            conversation_id=st.session_state.conversation_id,
+                            messages=st.session_state.messages,
+                            metadata={"mode": st.session_state.current_mode}
+                        )
+                else:
+                    # Non-streaming response
+                    with st.spinner("Thinking..."):
+                        response = asyncio.run(
+                            st.session_state.kernel_manager.get_response(
+                                prompt,
+                                system_message=system_message
+                            )
+                        )
+                        st.markdown(response)
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": response
+                        })
+
+                        # Auto-save to memory
+                        if st.session_state.get("auto_save_memory", True):
+                            st.session_state.memory_manager.save_conversation(
+                                conversation_id=st.session_state.conversation_id,
+                                messages=st.session_state.messages,
+                                metadata={"mode": st.session_state.current_mode}
+                            )
+
+            except Exception as e:
+                error_msg = f"Error: {str(e)}"
+                st.error(error_msg)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": error_msg
+                })
+                logger.error(f"Error getting response: {e}")
     
     def _render_multi_agent_mode(self) -> None:
         """Render multi-agent conversation interface."""
@@ -458,18 +649,50 @@ class SemanticKernelApp:
     def _render_multi_agent_config(self) -> None:
         """Render multi-agent configuration."""
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.subheader("Agent Configuration")
-            
+
+            # Create custom agent button
+            with st.expander("Create Custom Agent"):
+                agent_name = st.text_input("Agent Name", placeholder="e.g., Marketing Expert")
+                agent_role_id = st.text_input("Role ID", placeholder="e.g., marketer", help="Unique identifier (lowercase, no spaces)")
+                agent_description = st.text_area("Description", placeholder="Brief description of the agent's role")
+                agent_prompt = st.text_area("System Prompt", placeholder="Detailed instructions for the agent's behavior")
+
+                if st.button("Create Agent"):
+                    if agent_name and agent_role_id and agent_description and agent_prompt:
+                        # Create custom agent role dynamically
+                        from semantic_kernel_ui.core.agent_manager import Agent
+                        custom_agent = Agent(
+                            role=agent_role_id,
+                            name=agent_name,
+                            description=agent_description,
+                            system_prompt=agent_prompt
+                        )
+
+                        # Add to agent manager templates
+                        if not hasattr(st.session_state, "custom_agents"):
+                            st.session_state.custom_agents = {}
+
+                        st.session_state.custom_agents[agent_role_id] = custom_agent
+                        st.success(f"Created custom agent: {agent_name}")
+                    else:
+                        st.error("Please fill in all fields")
+
             # Agent selection
             available_agents = st.session_state.agent_manager.get_available_agents()
+
+            # Add custom agents
+            if hasattr(st.session_state, "custom_agents"):
+                available_agents.update(st.session_state.custom_agents)
+
             agent_options = list(available_agents.keys())
-            
+
             selected_agents = st.multiselect(
                 "Select Agents",
                 agent_options,
-                default=[AgentRole.RESEARCHER, AgentRole.WRITER],
+                default=[AgentRole.RESEARCHER, AgentRole.WRITER] if len(agent_options) >= 2 else agent_options[:2],
                 format_func=lambda x: available_agents[x].name,
                 help="Choose 2-5 agents for the conversation"
             )
@@ -652,24 +875,14 @@ class SemanticKernelApp:
             )
         
         # Display messages
-        agent_emojis = {
-            AgentRole.RESEARCHER: "",
-            AgentRole.WRITER: "",
-            AgentRole.CRITIC: "", 
-            AgentRole.CODER: "",
-            AgentRole.ANALYST: "",
-        }
-        
         for message in conversation.messages:
-            emoji = agent_emojis.get(message.agent_role, "🤖")
-            
-            with st.chat_message("assistant", avatar=emoji):
+            with st.chat_message("assistant"):
                 agent_name = next(
                     (a.name for a in conversation.agents if a.role == message.agent_role),
                     message.agent_role.value.title()
                 )
-                
-                st.markdown(f"**{emoji} {agent_name} (Round {message.round_number})**")
+
+                st.markdown(f"**{agent_name} (Round {message.round_number})**")
                 st.markdown(message.content)
                 st.caption(f"_{message.timestamp.strftime('%H:%M:%S')}_")
         
@@ -739,9 +952,9 @@ class SemanticKernelApp:
             if selected == "calculator":
                 self._render_calculator_plugin(plugin_map["calculator"]) 
             elif selected == "web_search":
-                self._render_websearch_plugin(plugin_map["web_search"]) 
-            elif selected == "file_operations":
-                self._render_filesystem_plugin(plugin_map["file_operations"]) 
+                self._render_websearch_plugin(plugin_map["web_search"])
+            elif selected == "file_index":
+                self._render_filesystem_plugin(plugin_map["file_index"])
             elif selected == "personality":
                 self._render_personality_plugin(plugin_map["personality"])
             else:
@@ -760,7 +973,7 @@ class SemanticKernelApp:
                 st.session_state.plugins = {
                     "calculator": CalculatorPlugin(),
                     "web_search": WebSearchPlugin(),
-                    "file_operations": FileOperationsPlugin(),
+                    "file_index": FileIndexPlugin(),
                     "personality": PersonalityPlugin(),
                 }
                 st.success(f" Loaded {len(st.session_state.plugins)} plugins")
@@ -783,10 +996,10 @@ class SemanticKernelApp:
                 "functions": ["search_web"],
                 "examples": ["latest ai research", "python asyncio tutorial"],
             },
-            "file_operations": {
-                "description": "Read, write and list files/directories.",
-                "functions": ["read_file", "write_file", "list_directory"],
-                "examples": ["read_file ./README.md", "list_directory ."],
+            "file_index": {
+                "description": "Read-only file indexing and search (secure, no writes).",
+                "functions": ["search_files", "read_file", "list_directory", "get_file_info"],
+                "examples": ["search_files *.py", "read_file ./README.md", "list_directory ."],
             },
             "personality": {
                 "description": "Adjust AI response personality.",
@@ -842,21 +1055,35 @@ class SemanticKernelApp:
                     st.text_area("Results", value=result, height=300)
         st.info("Configure SERPAPI_KEY or GOOGLE_CSE_API_KEY + GOOGLE_CSE_ENGINE_ID in environment for real results.")
     
-    def _render_filesystem_plugin(self, plugin: FileOperationsPlugin) -> None:
-        action = st.selectbox("Operation", ["List Directory", "Read File", "Write File"], index=0)
-        if action == "List Directory":
-            directory = st.text_input("Directory", value=".")
-            if st.button("List", key="fs_list"):
-                st.text_area("Contents", value=plugin.list_directory(directory), height=250)
+    def _render_filesystem_plugin(self, plugin: FileIndexPlugin) -> None:
+        """Render file indexing plugin UI (read-only)."""
+        st.info("Read-only file indexing - searches within allowed directories only")
+
+        action = st.selectbox("Operation", ["Search Files", "Read File", "List Directory", "File Info"], index=0)
+
+        if action == "Search Files":
+            pattern = st.text_input("Search Pattern", placeholder="*.py or config")
+            if st.button("Search", key="fs_search"):
+                result = plugin.search_files(pattern)
+                st.text_area("Results", value=result, height=300)
+
         elif action == "Read File":
             file_path = st.text_input("File Path")
             if st.button("Read", key="fs_read"):
-                st.text_area("Contents", value=plugin.read_file(file_path), height=300)
-        else:
+                result = plugin.read_file(file_path)
+                st.text_area("Contents", value=result, height=400)
+
+        elif action == "List Directory":
+            directory = st.text_input("Directory", value=".")
+            if st.button("List", key="fs_list"):
+                result = plugin.list_directory(directory)
+                st.text_area("Contents", value=result, height=300)
+
+        else:  # File Info
             file_path = st.text_input("File Path")
-            content = st.text_area("Content", height=200)
-            if st.button("Write", key="fs_write"):
-                st.success(plugin.write_file(file_path, content))
+            if st.button("Get Info", key="fs_info"):
+                result = plugin.get_file_info(file_path)
+                st.text_area("File Information", value=result, height=200)
     
     def _render_personality_plugin(self, plugin: PersonalityPlugin) -> None:
         personalities = ["friendly", "professional", "creative", "technical", "casual"]
@@ -867,15 +1094,168 @@ class SemanticKernelApp:
 
     def _render_memory_explorer(self) -> None:
         """Render memory explorer interface."""
-        st.subheader(" Memory Explorer")
-        st.info("Memory explorer functionality is not yet implemented.")
-        st.markdown("""
-        **Planned Features:**
-        - View conversation history
-        - Search past conversations
-        - Export conversation data
-        - Manage memory storage
-        """)
+        st.subheader("Memory Explorer")
+
+        memory_manager = st.session_state.memory_manager
+
+        # Tabs for different memory operations
+        tab_search, tab_browse, tab_manage = st.tabs(["Search", "Browse", "Manage"])
+
+        with tab_search:
+            st.markdown("### Semantic Search")
+            st.caption("Search through your conversations using natural language")
+
+            search_query = st.text_input(
+                "Search query",
+                placeholder="E.g., 'conversations about machine learning'"
+            )
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                n_results = st.slider(
+                    "Number of results",
+                    1,
+                    self.settings.max_pagination_limit,
+                    self.settings.default_search_results
+                )
+            with col2:
+                if st.button("Search", type="primary", use_container_width=True):
+                    if search_query:
+                        with st.spinner("Searching..."):
+                            results = memory_manager.search_conversations(search_query, n_results)
+
+                            if results:
+                                st.success(f"Found {len(results)} results")
+                                for i, result in enumerate(results, 1):
+                                    with st.expander(f"Result {i} - Conversation: {result['conversation_id'][:8]}..."):
+                                        st.markdown(f"**Matched Content:** {result['matched_content']}")
+                                        if result.get('similarity'):
+                                            st.caption(f"Similarity: {result['similarity']:.2%}")
+
+                                        st.markdown("**Full Conversation:**")
+                                        conv = result['conversation']
+                                        for msg in conv.get('messages', [])[:5]:  # Show first 5 messages
+                                            role = msg.get('role', 'unknown').upper()
+                                            st.markdown(f"**{role}:** {msg.get('content', '')[:200]}...")
+                            else:
+                                st.warning("No results found")
+                    else:
+                        st.warning("Please enter a search query")
+
+        with tab_browse:
+            st.markdown("### Conversation History")
+
+            conversations = memory_manager.list_conversations(
+                limit=self.settings.max_pagination_limit
+            )
+
+            if conversations:
+                st.caption(f"Showing {len(conversations)} conversations")
+
+                for conv in conversations:
+                    conv_id = conv['id']
+                    created = conv.get('created_at', 'Unknown')
+                    msg_count = len(conv.get('messages', []))
+
+                    with st.expander(f"{conv_id[:12]}... ({msg_count} messages) - {created[:10]}"):
+                        # Display conversation
+                        for msg in conv.get('messages', []):
+                            role = msg.get('role', 'unknown')
+                            content = msg.get('content', '')
+
+                            if role == 'user':
+                                st.markdown(f"**User:** {content}")
+                            else:
+                                st.markdown(f"**Assistant:** {content}")
+
+                        # Actions
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            if st.button(f"Export JSON", key=f"export_json_{conv_id}"):
+                                export_data = memory_manager.export_conversation(conv_id, format="json")
+                                if export_data:
+                                    st.download_button(
+                                        "Download JSON",
+                                        data=export_data,
+                                        file_name=f"conversation_{conv_id[:8]}.json",
+                                        mime="application/json",
+                                        key=f"download_json_{conv_id}"
+                                    )
+
+                        with col2:
+                            if st.button(f"Export Markdown", key=f"export_md_{conv_id}"):
+                                export_data = memory_manager.export_conversation(conv_id, format="markdown")
+                                if export_data:
+                                    st.download_button(
+                                        "Download Markdown",
+                                        data=export_data,
+                                        file_name=f"conversation_{conv_id[:8]}.md",
+                                        mime="text/markdown",
+                                        key=f"download_md_{conv_id}"
+                                    )
+
+                        with col3:
+                            if st.button(f"Delete", key=f"delete_{conv_id}"):
+                                if memory_manager.delete_conversation(conv_id):
+                                    st.success("Conversation deleted")
+                                    st.rerun()
+            else:
+                st.info("No conversations saved yet. Start chatting to build your memory!")
+
+        with tab_manage:
+            st.markdown("### Memory Management")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.metric("Total Conversations", len(memory_manager.conversations))
+
+            with col2:
+                total_messages = sum(
+                    len(conv.get('messages', []))
+                    for conv in memory_manager.conversations.values()
+                )
+                st.metric("Total Messages", total_messages)
+
+            st.markdown("---")
+
+            # Auto-save setting
+            auto_save = st.checkbox(
+                "Auto-save conversations",
+                value=st.session_state.get("auto_save_memory", True),
+                help="Automatically save conversations to memory"
+            )
+            st.session_state.auto_save_memory = auto_save
+
+            # Save current conversation
+            if st.button("Save Current Conversation", type="primary", use_container_width=True):
+                if st.session_state.messages:
+                    conv_id = st.session_state.conversation_id
+                    memory_manager.save_conversation(
+                        conversation_id=conv_id,
+                        messages=st.session_state.messages,
+                        metadata={"mode": st.session_state.current_mode}
+                    )
+                    st.success(f"Saved conversation: {conv_id}")
+                else:
+                    st.warning("No messages to save")
+
+            # Clear all
+            st.markdown("---")
+            st.markdown("### Danger Zone")
+
+            if st.button("Clear All Memory", type="secondary", use_container_width=True):
+                if st.session_state.get("confirm_clear_memory"):
+                    memory_manager.clear_all()
+                    st.success("All memory cleared!")
+                    st.session_state.confirm_clear_memory = False
+                    st.rerun()
+                else:
+                    st.session_state.confirm_clear_memory = True
+                    st.warning("Click again to confirm deletion of all conversations")
+
+            if not st.session_state.get("confirm_clear_memory", False):
+                st.caption("This will permanently delete all saved conversations")
 
 
 def main() -> None:

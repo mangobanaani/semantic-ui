@@ -9,8 +9,12 @@ from .config import AppSettings  # lightweight
 from .core import KernelManager, AgentManager
 from .plugins import (
     CalculatorPlugin,
-    FileOperationsPlugin,
+    DateTimePlugin,
+    ExportPlugin,
+    FileIndexPlugin,
+    HttpApiPlugin,
     PersonalityPlugin,
+    TextProcessingPlugin,
     WebSearchPlugin,
 )
 
@@ -22,11 +26,15 @@ def create_app():  # pragma: no cover - thin helper
 
 __all__ = [
     "create_app",
-    "AppSettings", 
+    "AppSettings",
     "KernelManager",
     "AgentManager",
     "CalculatorPlugin",
-    "FileOperationsPlugin",
+    "DateTimePlugin",
+    "ExportPlugin",
+    "FileIndexPlugin",
+    "HttpApiPlugin",
     "PersonalityPlugin",
+    "TextProcessingPlugin",
     "WebSearchPlugin",
 ]

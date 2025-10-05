@@ -164,7 +164,7 @@ class TestIntegration:
             mock_service = AsyncMock()
             mock_response = Mock()
             mock_response.content = "Test response"
-            mock_service.get_chat_message_content.return_value = mock_response
+            mock_service.get_chat_message_contents.return_value = [mock_response]
             mock_completion.return_value = mock_service
             
             # Setup kernel manager

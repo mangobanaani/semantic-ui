@@ -13,42 +13,41 @@ def test_imports():
     """Test that we can import our main modules."""
     try:
         from semantic_kernel_ui.config import AppConfig
-        print("✓ Config import successful")
-        
+        print("Config import successful")
+
         from semantic_kernel_ui.core.kernel_manager import KernelManager
-        print("✓ KernelManager import successful")
-        
+        print("KernelManager import successful")
+
         from semantic_kernel_ui.core.agent_manager import AgentManager
-        print("✓ AgentManager import successful")
-        
+        print("AgentManager import successful")
+
         from semantic_kernel_ui.app import SemanticKernelApp
-        print("✓ SemanticKernelApp import successful")
-        
+        print("SemanticKernelApp import successful")
+
         assert True
     except ImportError as e:
-        print(f"✗ Import failed: {e}")
+        print(f"Import failed: {e}")
         assert False, f"Import failed: {e}"
 
 def test_basic_functionality():
     """Test basic functionality without external dependencies."""
     try:
         from semantic_kernel_ui.config import AppConfig
-        
-        # Test config initialization
+
         config = AppConfig()
-        print(f"✓ AppConfig initialized: {type(config)}")
-        
+        print(f"AppConfig initialized: {type(config)}")
+
         from semantic_kernel_ui.core.kernel_manager import KernelManager
         km = KernelManager()
-        print(f"✓ KernelManager initialized: {type(km)}")
-        
+        print(f"KernelManager initialized: {type(km)}")
+
         from semantic_kernel_ui.core.agent_manager import AgentManager
         am = AgentManager()
-        print(f"✓ AgentManager initialized: {type(am)}")
-        
+        print(f"AgentManager initialized: {type(am)}")
+
         assert True
     except Exception as e:
-        print(f"✗ Basic functionality test failed: {e}")
+        print(f"Basic functionality test failed: {e}")
         assert False, f"Basic functionality test failed: {e}"
 
 def test_file_structure():
@@ -70,11 +69,11 @@ def test_file_structure():
     for file_path in expected_files:
         full_path = project_root / file_path
         if full_path.exists():
-            print(f"✓ {file_path} exists")
+            print(f"[OK] {file_path} exists")
         else:
-            print(f"✗ {file_path} missing")
+            print(f"[MISSING] {file_path}")
             all_exist = False
-    
+
     assert all_exist, "Some expected files are missing"
 
 if __name__ == "__main__":
@@ -102,10 +101,10 @@ if __name__ == "__main__":
     total = len(results)
     print(f"Tests passed: {passed}/{total}")
     print(f"Success rate: {(passed/total)*100:.1f}%")
-    
+
     if all(results):
-        print("🎉 All tests passed!")
+        print("All tests passed!")
         sys.exit(0)
     else:
-        print("❌ Some tests failed")
+        print("Some tests failed")
         sys.exit(1)
