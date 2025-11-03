@@ -1,7 +1,6 @@
 """Test configuration for pytest."""
 
 import sys
-import os
 from pathlib import Path
 
 # Add the project root and src to Python path

@@ -33,11 +33,12 @@ class MemoryManager:
         self.conversations_file = self.persist_directory / "conversations.json"
         self.use_vector_db = use_vector_db
 
+        self.vector_store: Optional[VectorStore]
         if use_vector_db:
             vector_db_path = str(self.persist_directory / "vector_db")
             self.vector_store = VectorStore(persist_directory=vector_db_path)
         else:
-            self.vector_store = None
+            self.vector_store = None  # type: ignore[assignment]
 
         # Load existing conversations
         self.conversations: Dict[str, Dict[str, Any]] = self._load_conversations()

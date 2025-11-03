@@ -70,7 +70,7 @@ class VectorStore:
             try:
                 self.collection.add(
                     documents=documents,
-                    metadatas=metadatas,
+                    metadatas=metadatas,  # type: ignore[arg-type]
                     ids=ids
                 )
                 logger.info(f"Added {len(documents)} messages to vector store")
@@ -107,7 +107,7 @@ class VectorStore:
                     formatted_results.append({
                         "content": results["documents"][0][i],
                         "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                        "distance": results["distances"][0][i] if results.get("distances") else None,
+                        "distance": results["distances"][0][i] if results.get("distances") else None,  # type: ignore[index]
                     })
 
             return formatted_results
@@ -139,7 +139,7 @@ class VectorStore:
                     })
 
             # Sort by message index
-            messages.sort(key=lambda x: x["metadata"].get("message_index", 0))
+            messages.sort(key=lambda x: x["metadata"].get("message_index", 0))  # type: ignore[arg-type, union-attr, return-value]
             return messages
         except Exception as e:
             logger.error(f"Error getting conversation: {e}")
@@ -182,13 +182,15 @@ class VectorStore:
             conversations: Dict[str, Dict[str, Any]] = {}
             if results["metadatas"]:
                 for metadata in results["metadatas"]:
-                    conv_id = metadata.get("conversation_id")
-                    if conv_id and conv_id not in conversations:
-                        conversations[conv_id] = {
+                    conv_id = metadata.get("conversation_id")  # type: ignore[index]
+                    if conv_id and str(conv_id) not in conversations:  # type: ignore[index]
+                        conversations[str(conv_id)] = {  # type: ignore[index]
                             "conversation_id": conv_id,
                             "timestamp": metadata.get("timestamp"),
-                            "metadata": {k: v for k, v in metadata.items()
-                                       if k not in ["conversation_id", "role", "message_index", "timestamp"]}
+                            "metadata": {
+                                k: v for k, v in metadata.items()
+                                if k not in ["conversation_id", "role", "message_index", "timestamp"]
+                            }
                         }
 
             return list(conversations.values())

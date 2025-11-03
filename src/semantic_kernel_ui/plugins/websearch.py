@@ -11,28 +11,34 @@ Environment variables supported (first found is used):
 
 If no keys are configured, a helpful instructional message is returned.
 """
+
 from __future__ import annotations
-from typing import Annotated, Optional, List, Dict
-import os
+
 import json
+import os
 import time
+from typing import Annotated, Any, Dict, Optional
 
 try:  # Prefer requests if installed
     import requests  # type: ignore
 except ImportError:  # Fallback to urllib if requests not present
-    import urllib.request as _urlreq
     import urllib.error as _urlerr
+    import urllib.request as _urlreq
+
     requests = None  # type: ignore
 
 try:
     from semantic_kernel.functions import kernel_function
 except ImportError:  # Fallback decorator
-    def kernel_function(name: str = None, description: str = None):
+
+    def kernel_function(name: Optional[str] = None, description: Optional[str] = None):  # type: ignore[misc]
         def decorator(func):
             func._sk_name = name
             func._sk_description = description
             return func
+
         return decorator
+
 
 __all__ = ["WebSearchPlugin"]
 
@@ -58,18 +64,20 @@ def _cache_set(key: str, value: str) -> None:
 
 class WebSearchPlugin:
     """Plugin for real web search (Google / SerpAPI) with graceful fallback.
-    
+
     Optional override: provider preference order via provider_hint: 'serpapi'|'google'.
     Caching NOTE: cache key includes resolved provider so provider-specific
     results are not mixed if different providers are requested for the same query.
     """
 
-    @kernel_function(name="search_web", description="Search the web for information on a given topic")
+    @kernel_function(name="search_web", description="Search the web for information on a given topic")  # type: ignore[misc]
     def search_web(
         self,
         query: Annotated[str, "The search query to look for"],
         max_results: Annotated[int, "Maximum number of results (1-10)"] = 5,
-        provider_hint: Annotated[str, "Force provider: serpapi|google or auto"] = "auto",
+        provider_hint: Annotated[
+            str, "Force provider: serpapi|google or auto"
+        ] = "auto",
     ) -> Annotated[str, "Search results"]:
         query = (query or "").strip()
         if not query:
@@ -122,8 +130,8 @@ class WebSearchPlugin:
             "num": max_results,
         }
         try:
-            data = self._http_get_json(url, params)
-            organic = data.get("organic_results", [])[:max_results]
+            data = self._http_get_json(url, params)  # type: ignore[arg-type]
+            organic = data.get("organic_results", [])[:max_results]  # type: ignore[index]
             # Normalization
             if not isinstance(organic, list):
                 organic = []
@@ -133,13 +141,17 @@ class WebSearchPlugin:
             for i, item in enumerate(organic, 1):
                 title = item.get("title", "(no title)")
                 link = item.get("link", "")
-                snippet = item.get("snippet", "").replace('\n', ' ')
+                snippet = item.get("snippet", "").replace("\n", " ")
                 lines.append(f"{i}. {title}\n{link}\n{snippet}")
             return "\n\n".join(lines)
         except Exception as e:  # noqa: BLE001
-            return f"SerpAPI search failed: {self._sanitize_error(e)}"  # Already sanitized
+            return (
+                f"SerpAPI search failed: {self._sanitize_error(e)}"  # Already sanitized
+            )
 
-    def _search_google_cse(self, query: str, api_key: str, engine_id: str, max_results: int) -> str:
+    def _search_google_cse(
+        self, query: str, api_key: str, engine_id: str, max_results: int
+    ) -> str:
         url = "https://www.googleapis.com/customsearch/v1"
         params = {
             "key": api_key,
@@ -148,8 +160,8 @@ class WebSearchPlugin:
             "num": max_results,
         }
         try:
-            data = self._http_get_json(url, params)
-            items = data.get("items", [])[:max_results]
+            data = self._http_get_json(url, params)  # type: ignore[arg-type]
+            items = data.get("items", [])[:max_results]  # type: ignore[index]
             if not isinstance(items, list):
                 items = []
             if not items:
@@ -158,14 +170,14 @@ class WebSearchPlugin:
             for i, item in enumerate(items, 1):
                 title = item.get("title", "(no title)")
                 link = item.get("link", "")
-                snippet = item.get("snippet", "").replace('\n', ' ')
+                snippet = item.get("snippet", "").replace("\n", " ")
                 lines.append(f"{i}. {title}\n{link}\n{snippet}")
             return "\n\n".join(lines)
         except Exception as e:  # noqa: BLE001
             return f"Google CSE search failed: {self._sanitize_error(e)}"  # Already sanitized
 
     # -------- HTTP helper -------- #
-    def _http_get_json(self, url: str, params: Dict[str, str]) -> Dict[str, any]:
+    def _http_get_json(self, url: str, params: Dict[str, Any]) -> Dict[str, Any]:
         if requests:  # type: ignore
             resp = requests.get(url, params=params, timeout=10)
             resp.raise_for_status()
@@ -189,4 +201,4 @@ class WebSearchPlugin:
         msg = str(exc)
         if len(msg) > 120:
             msg = msg[:117] + "..."
-        return msg.replace('\n', ' ').strip()
+        return msg.replace("\n", " ").strip()

@@ -1,0 +1,205 @@
+# Docker Compose configuration for Development
+# Hot reload, debugging tools, test runner
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Development Application with Hot Reload
+  # ============================================================================
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      args:
+        INSTALL_TESSERACT: "true"
+    image: semantic-kernel-ui:dev
+    container_name: semantic-kernel-ui-dev
+    restart: unless-stopped
+
+    # Development: Allow debugging as root if needed
+    user: "1000:1000"
+
+    # Ports
+    ports:
+      - "8501:8501"  # Streamlit
+      - "5678:5678"  # Python debugger (debugpy)
+
+    # Environment
+    environment:
+      - APP_TITLE=Semantic Kernel UI (Dev)
+      - DEBUG_MODE=true
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+
+      # Development settings
+      - STREAMLIT_SERVER_RUN_ON_SAVE=true
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=auto
+
+      # API Keys from host environment
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+    # Volumes: Mount source code for hot reload
+    volumes:
+      - ./src:/app/src:rw
+      - ./tests:/app/tests:rw
+      - ./run.py:/app/run.py:rw
+      - ./pytest.ini:/app/pytest.ini:ro
+      - ./.env:/app/.env:ro
+      - ./memory:/app/memory:rw
+      - ./logs:/app/logs:rw
+
+    # Command with hot reload
+    command: >
+      streamlit run src/semantic_kernel_ui/app.py
+      --server.port=8501
+      --server.address=0.0.0.0
+      --server.runOnSave=true
+      --server.fileWatcherType=auto
+      --logger.level=debug
+
+    networks:
+      - semantic-kernel-dev-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ============================================================================
+  # Test Runner Service
+  # ============================================================================
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      args:
+        INSTALL_TESSERACT: "true"
+    image: semantic-kernel-ui:dev
+    container_name: semantic-kernel-test-runner
+    profiles:
+      - test
+
+    user: "1000:1000"
+
+    environment:
+      - PYTHONPATH=/app/src
+      - PYTEST_VERBOSE=1
+
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pytest.ini:/app/pytest.ini:ro
+      - ./coverage_reports:/app/coverage_reports:rw
+
+    # Run tests and generate coverage
+    command: >
+      pytest tests/ -v
+      --cov=src/semantic_kernel_ui
+      --cov-report=html:/app/coverage_reports/html
+      --cov-report=term
+
+    networks:
+      - semantic-kernel-dev-network
+
+  # ============================================================================
+  # Code Quality Checker
+  # ============================================================================
+  linter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    image: semantic-kernel-ui:dev
+    container_name: semantic-kernel-linter
+    profiles:
+      - lint
+
+    user: "1000:1000"
+
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+
+    # Run linters
+    command: >
+      sh -c "
+      echo '=== Running Black ===' &&
+      black --check src/ tests/ &&
+      echo '=== Running isort ===' &&
+      isort --check-only src/ tests/ &&
+      echo '=== Running Flake8 ===' &&
+      flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203 &&
+      echo '=== Running MyPy ===' &&
+      mypy src/ --ignore-missing-imports
+      "
+
+    networks:
+      - semantic-kernel-dev-network
+
+  # ============================================================================
+  # Development Database (PostgreSQL)
+  # ============================================================================
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: semantic-kernel-db-dev
+    restart: unless-stopped
+
+    environment:
+      - POSTGRES_DB=semantic_kernel_dev
+      - POSTGRES_USER=dev_user
+      - POSTGRES_PASSWORD=dev_password
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+
+    networks:
+      - semantic-kernel-dev-network
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev_user"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ============================================================================
+  # Development Redis Cache
+  # ============================================================================
+  redis-dev:
+    image: redis:7-alpine
+    container_name: semantic-kernel-redis-dev
+    restart: unless-stopped
+
+    command: redis-server --appendonly yes
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis_dev_data:/data
+
+    networks:
+      - semantic-kernel-dev-network
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+networks:
+  semantic-kernel-dev-network:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:

@@ -2,6 +2,7 @@
 
 from .calculator import CalculatorPlugin
 from .datetime_utils import DateTimePlugin
+from .document_intelligence import DocumentIntelligencePlugin
 from .export import ExportPlugin
 from .filesystem import FileIndexPlugin
 from .http_api import HttpApiPlugin
@@ -12,6 +13,7 @@ from .websearch import WebSearchPlugin
 __all__ = [
     "CalculatorPlugin",
     "DateTimePlugin",
+    "DocumentIntelligencePlugin",
     "ExportPlugin",
     "FileIndexPlugin",
     "HttpApiPlugin",

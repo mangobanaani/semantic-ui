@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import os
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Provider(str, Enum):
@@ -23,7 +22,7 @@ class Provider(str, Enum):
 
 class ConversationStyle(str, Enum):
     """Multi-agent conversation styles."""
-    
+
     COLLABORATIVE = "collaborative"
     DEBATE = "debate"
     SEQUENTIAL = "sequential"
@@ -32,20 +31,20 @@ class ConversationStyle(str, Enum):
 
 class AppSettings(BaseSettings):
     """Application configuration settings."""
-    
+
     model_config = SettingsConfigDict(
         env_file=[".env", "../.env", "../../.env"],  # Look in multiple locations
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # Ignore extra fields for backward compatibility
     )
-    
+
     # Application settings
     app_title: str = Field(default="Semantic Kernel LLM UI")
     page_icon: str = Field(default="🤖")
     layout: str = Field(default="wide")
     debug_mode: bool = Field(default=False)
-    
+
     # API settings
     openai_api_key: Optional[str] = Field(default=None)
     azure_openai_api_key: Optional[str] = Field(default=None)
@@ -54,24 +53,24 @@ class AppSettings(BaseSettings):
     azure_openai_deployment_name: Optional[str] = Field(default=None)  # Legacy field
     azure_api_key: Optional[str] = Field(default=None)
     anthropic_api_key: Optional[str] = Field(default=None)
-    
+
     # Search API settings (optional)
     bing_api_key: Optional[str] = Field(default=None)
     google_api_key: Optional[str] = Field(default=None)
     serpapi_key: Optional[str] = Field(default=None)
     google_cse_api_key: Optional[str] = Field(default=None)
     google_cse_engine_id: Optional[str] = Field(default=None)
-    
+
     # Model settings
     default_provider: Provider = Field(default=Provider.OPENAI)
     default_model: str = Field(default="gpt-4")
     max_tokens: int = Field(default=4096, ge=1, le=32000)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    
+
     # Multi-agent settings
     max_conversation_rounds: int = Field(default=15, ge=1, le=50)
     default_conversation_style: ConversationStyle = Field(default=ConversationStyle.COLLABORATIVE)
-    
+
     # Memory settings
     max_conversation_history: int = Field(default=100, ge=1)
     memory_persist_directory: str = Field(default="./memory")
@@ -81,7 +80,19 @@ class AppSettings(BaseSettings):
     # UI settings
     default_search_results: int = Field(default=5, ge=1, le=50)
     max_pagination_limit: int = Field(default=50, ge=1, le=200)
-        
+
+    # Document Intelligence settings
+    enable_document_intelligence: bool = Field(default=True)
+    enable_llm_classification: bool = Field(default=True)
+    enable_tesseract_ocr: bool = Field(default=True)
+    enable_azure_doc_intelligence: bool = Field(default=False)
+    azure_doc_intelligence_endpoint: Optional[str] = Field(default=None)
+    azure_doc_intelligence_key: Optional[str] = Field(default=None)
+    tesseract_cmd: Optional[str] = Field(default=None)
+    tesseract_languages: str = Field(default="eng+fin+swe")
+    doc_intelligence_max_content_length: int = Field(default=10000, ge=1000, le=50000)
+    doc_intelligence_cache_results: bool = Field(default=True)
+
     @field_validator("openai_api_key", "azure_openai_api_key")
     @classmethod
     def validate_api_key(cls, value: Optional[str]) -> Optional[str]:
@@ -94,7 +105,7 @@ class AppSettings(BaseSettings):
         if len(value) < 8:  # Very short values are probably invalid
             raise ValueError("API key appears to be too short")
         return value
-    
+
     @field_validator("azure_openai_endpoint")
     @classmethod
     def validate_azure_endpoint(cls, value: Optional[str]) -> Optional[str]:
@@ -105,7 +116,7 @@ class AppSettings(BaseSettings):
         if value.startswith("your_") or value.startswith("https://"):
             return value
         raise ValueError("Azure endpoint must start with https://")
-    
+
     @model_validator(mode="after")
     def validate_provider(self):
         # Basic provider sanity; extend if needed
@@ -121,7 +132,7 @@ class AppSettings(BaseSettings):
             if any(provided) and not all(provided):
                 raise ValueError("Incomplete Azure OpenAI configuration")
         return self
-    
+
     def get_api_key(self, provider: Provider) -> Optional[str]:
         """Get API key for the specified provider."""
         if provider == Provider.OPENAI:
@@ -133,7 +144,7 @@ class AppSettings(BaseSettings):
         elif provider == Provider.GOOGLE:
             return self.google_api_key or os.getenv("GOOGLE_API_KEY")
         return None
-    
+
     def is_provider_configured(self, provider: Provider) -> bool:
         """Check if a provider is properly configured."""
         if provider == Provider.OPENAI:

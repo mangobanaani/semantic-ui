@@ -1,0 +1,213 @@
+# Docker Compose configuration for Semantic Kernel UI
+# Production-ready setup with layered security
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Main Application Service
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        INSTALL_TESSERACT: "true"  # Set to "false" to skip Tesseract
+    image: semantic-kernel-ui:latest
+    container_name: semantic-kernel-ui
+    restart: unless-stopped
+
+    # Security: Run as non-root user (UID 1000)
+    user: "1000:1000"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Ports
+    ports:
+      - "8501:8501"
+
+    # Environment variables (override with .env file)
+    environment:
+      # Application
+      - APP_TITLE=Semantic Kernel UI
+      - DEBUG_MODE=false
+      - TEMPERATURE=0.7
+      - MAX_TOKENS=4096
+
+      # Memory
+      - MEMORY_PERSIST_DIRECTORY=/app/memory
+      - VECTOR_DB_DIRECTORY=/app/memory/vector_db
+      - USE_VECTOR_DB=true
+
+      # Document Intelligence
+      - ENABLE_DOCUMENT_INTELLIGENCE=true
+      - ENABLE_LLM_CLASSIFICATION=true
+      - ENABLE_TESSERACT_OCR=true
+      - ENABLE_AZURE_DOC_INTELLIGENCE=false
+      - TESSERACT_LANGUAGES=eng+fin+swe
+
+      # API Keys (SECURITY: Use secrets or env file, not hardcoded)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+    # Volumes
+    volumes:
+      # Persistent memory storage
+      - memory_data:/app/memory
+      # Logs
+      - ./logs:/app/logs
+      # Optional: Mount .env file (SECURITY: Use secrets in production)
+      - ./.env:/app/.env:ro
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Networking
+    networks:
+      - semantic-kernel-network
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================================
+  # Optional: Reverse Proxy (Nginx) for production
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: semantic-kernel-nginx
+    restart: unless-stopped
+    profiles:
+      - production
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+
+    depends_on:
+      - app
+
+    networks:
+      - semantic-kernel-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================================
+  # Optional: Redis Cache for enhanced performance
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: semantic-kernel-redis
+    restart: unless-stopped
+    profiles:
+      - with-cache
+
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
+
+    volumes:
+      - redis_data:/data
+
+    networks:
+      - semantic-kernel-network
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ============================================================================
+  # Optional: PostgreSQL for production-grade persistence
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: semantic-kernel-db
+    restart: unless-stopped
+    profiles:
+      - with-db
+
+    environment:
+      - POSTGRES_DB=semantic_kernel
+      - POSTGRES_USER=semantic_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - semantic-kernel-network
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U semantic_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  semantic-kernel-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  memory_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./memory
+
+  redis_data:
+    driver: local
+
+  postgres_data:
+    driver: local

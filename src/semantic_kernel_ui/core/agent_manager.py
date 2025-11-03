@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 class AgentRole(str, Enum):
     """Available agent roles."""
-    
+
     RESEARCHER = "researcher"
     WRITER = "writer"
-    CRITIC = "critic" 
+    CRITIC = "critic"
     CODER = "coder"
     ANALYST = "analyst"
     # Backward compat aliases
@@ -28,31 +28,31 @@ class AgentRole(str, Enum):
 
 class Agent(BaseModel):
     """Represents an AI agent in a conversation."""
-    
+
     role: AgentRole
     name: str
     description: str
     system_prompt: str
     # Backward compat field for tests expecting personality
     personality: Optional[str] = None
-    
+
     model_config = {"use_enum_values": True}
 
 
 class ConversationMessage(BaseModel):
     """Represents a message in a multi-agent conversation."""
-    
+
     agent_role: AgentRole
     content: str
     round_number: int
     timestamp: datetime
-    
+
     model_config = {"use_enum_values": True}
 
 
 class ConversationState(BaseModel):
     """Represents the state of a multi-agent conversation."""
-    
+
     topic: str
     objectives: Optional[str] = None
     style: ConversationStyle
@@ -61,20 +61,20 @@ class ConversationState(BaseModel):
     current_round: int = 0
     max_rounds: int
     is_active: bool = False
-    
+
     model_config = {"use_enum_values": True}
 
 
 class AgentManager:
     """Manages multi-agent conversations with backward compatibility."""
-    
+
     def __init__(self) -> None:
         self._conversations: Dict[str, ConversationState] = {}
         self._agent_templates = self._create_agent_templates()
         # Backward compatibility attributes expected by legacy tests
         self.agents: List[Agent] = []
         self.conversation_history: List[Any] = []
-    
+
     def _create_agent_templates(self) -> Dict[AgentRole, Agent]:
         """Create predefined agent templates."""
         return {
@@ -129,10 +129,10 @@ class AgentManager:
                 )
             ),
         }
-    
+
     def get_available_agents(self) -> Dict[AgentRole, Agent]:
         return self._agent_templates.copy()
-    
+
     # -------- Backward compatibility API -------- #
     def create_agent(self, name: str, role: AgentRole, personality: Optional[str] = None) -> Agent:
         """Legacy-style agent creation for tests.
@@ -147,7 +147,7 @@ class AgentManager:
         )
         self.agents.append(agent)
         return agent
-    
+
     # -------- New conversation API -------- #
     def create_conversation(
         self,
@@ -182,10 +182,10 @@ class AgentManager:
         self._conversations[conversation_id] = conversation
         logger.info(f"Created conversation '{conversation_id}' with {len(agents)} agents")
         return conversation
-    
+
     def get_conversation(self, conversation_id: str) -> Optional[ConversationState]:
         return self._conversations.get(conversation_id)
-    
+
     def add_message(self, conversation_id: str, agent_role: AgentRole, content: str) -> bool:
         conversation = self._conversations.get(conversation_id)
         if not conversation:
@@ -207,7 +207,7 @@ class AgentManager:
             "round": conversation.current_round,
         })
         return True
-    
+
     def get_next_agent(self, conversation_id: str) -> Optional[Agent]:
         conversation = self._conversations.get(conversation_id)
         if not conversation or not conversation.is_active:
@@ -216,7 +216,7 @@ class AgentManager:
             return None
         idx = conversation.current_round % len(conversation.agents)
         return conversation.agents[idx]
-    
+
     def create_agent_prompt(
         self,
         conversation_id: str,
@@ -257,21 +257,21 @@ class AgentManager:
             f"{agent.name} response:",
         ])
         return "\n".join(parts)
-    
+
     def start_conversation(self, conversation_id: str) -> bool:
         conversation = self._conversations.get(conversation_id)
         if not conversation:
             return False
         conversation.is_active = True
         return True
-    
+
     def stop_conversation(self, conversation_id: str) -> bool:
         conversation = self._conversations.get(conversation_id)
         if not conversation:
             return False
         conversation.is_active = False
         return True
-    
+
     def clear_conversation(self, conversation_id: str) -> bool:
         conversation = self._conversations.get(conversation_id)
         if not conversation:
@@ -282,7 +282,7 @@ class AgentManager:
         # Legacy clear
         self.conversation_history = [h for h in self.conversation_history if h.get("conv_id") != conversation_id]
         return True
-    
+
     def export_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         conversation = self._conversations.get(conversation_id)
         if not conversation:

@@ -1,28 +1,31 @@
 """Export plugin for conversations."""
+
 from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Annotated, List, Dict, Any
+from typing import Annotated
 
 try:
     from semantic_kernel.functions import kernel_function
 except ImportError:
-    def kernel_function(name: str = None, description: str = None):
+    from typing import Optional
+
+    def kernel_function(name: Optional[str] = None, description: Optional[str] = None):  # type: ignore[misc]
         def decorator(func):
             func._sk_name = name
             func._sk_description = description
             return func
+
         return decorator
 
 
 class ExportPlugin:
     """Plugin for exporting conversations and data."""
 
-    @kernel_function(name="export_markdown", description="Export conversation to Markdown")
+    @kernel_function(name="export_markdown", description="Export conversation to Markdown")  # type: ignore[misc]
     def export_markdown(
-        self,
-        messages: Annotated[str, "JSON string of messages"]
+        self, messages: Annotated[str, "JSON string of messages"]
     ) -> Annotated[str, "Markdown formatted conversation"]:
         """Export conversation to Markdown format.
 
@@ -39,7 +42,7 @@ class ExportPlugin:
                 "# Conversation Export",
                 f"\n**Exported:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 f"\n**Messages:** {len(msg_list)}",
-                "\n---\n"
+                "\n---\n",
             ]
 
             for i, msg in enumerate(msg_list, 1):
@@ -56,10 +59,9 @@ class ExportPlugin:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    @kernel_function(name="export_json", description="Export data as formatted JSON")
+    @kernel_function(name="export_json", description="Export data as formatted JSON")  # type: ignore[misc]
     def export_json(
-        self,
-        data: Annotated[str, "Data to export as JSON"]
+        self, data: Annotated[str, "Data to export as JSON"]
     ) -> Annotated[str, "Formatted JSON"]:
         """Export data as formatted JSON.
 
@@ -73,7 +75,7 @@ class ExportPlugin:
             if isinstance(data, str):
                 obj = json.loads(data)
             else:
-                obj = data
+                obj = data  # type: ignore[assignment, unreachable]
 
             formatted = json.dumps(obj, indent=2, ensure_ascii=False)
             return f"```json\n{formatted}\n```"
@@ -82,10 +84,9 @@ class ExportPlugin:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    @kernel_function(name="export_csv", description="Convert JSON data to CSV format")
+    @kernel_function(name="export_csv", description="Convert JSON data to CSV format")  # type: ignore[misc]
     def export_csv(
-        self,
-        json_data: Annotated[str, "JSON array to convert to CSV"]
+        self, json_data: Annotated[str, "JSON array to convert to CSV"]
     ) -> Annotated[str, "CSV formatted data"]:
         """Convert JSON array to CSV format.
 
@@ -118,10 +119,9 @@ class ExportPlugin:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    @kernel_function(name="create_summary", description="Create a summary of conversation")
+    @kernel_function(name="create_summary", description="Create a summary of conversation")  # type: ignore[misc]
     def create_summary(
-        self,
-        messages: Annotated[str, "JSON string of messages"]
+        self, messages: Annotated[str, "JSON string of messages"]
     ) -> Annotated[str, "Conversation summary"]:
         """Create a summary of a conversation.
 
@@ -147,7 +147,11 @@ class ExportPlugin:
                 f"Assistant messages: {len(assistant_msgs)}",
                 f"Total characters: {total_chars:,}",
                 f"Average message length: {avg_msg_length:.0f} characters",
-                f"\nFirst message: {msg_list[0].get('content', '')[:100]}..." if msg_list else "",
+                (
+                    f"\nFirst message: {msg_list[0].get('content', '')[:100]}..."
+                    if msg_list
+                    else ""
+                ),
             ]
 
             return "\n".join(summary)
@@ -156,10 +160,9 @@ class ExportPlugin:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    @kernel_function(name="export_code_blocks", description="Extract all code blocks from conversation")
+    @kernel_function(name="export_code_blocks", description="Extract all code blocks from conversation")  # type: ignore[misc]
     def export_code_blocks(
-        self,
-        messages: Annotated[str, "JSON string of messages"]
+        self, messages: Annotated[str, "JSON string of messages"]
     ) -> Annotated[str, "Extracted code blocks"]:
         """Extract all code blocks from conversation.
 
@@ -171,9 +174,10 @@ class ExportPlugin:
         """
         try:
             import re
+
             msg_list = json.loads(messages)
 
-            code_pattern = r'```(\w+)?\n(.*?)```'
+            code_pattern = r"```(\w+)?\n(.*?)```"
             all_code_blocks = []
 
             for msg in msg_list:
@@ -181,10 +185,9 @@ class ExportPlugin:
                 blocks = re.findall(code_pattern, content, re.DOTALL)
 
                 for lang, code in blocks:
-                    all_code_blocks.append({
-                        "language": lang or "plaintext",
-                        "code": code.strip()
-                    })
+                    all_code_blocks.append(
+                        {"language": lang or "plaintext", "code": code.strip()}
+                    )
 
             if not all_code_blocks:
                 return "No code blocks found in conversation"

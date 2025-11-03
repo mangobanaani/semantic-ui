@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion as SKOpenAIChatCompletion
+from semantic_kernel.connectors.ai.open_ai import (
+    OpenAIChatCompletion as SKOpenAIChatCompletion,
+)
 
 
 class OpenAIChatCompletion(SKOpenAIChatCompletion):

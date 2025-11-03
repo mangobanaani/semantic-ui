@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional, Union
 
 import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatPromptExecutionSettings
-from semantic_kernel.contents import ChatHistory, ChatMessageContent, AuthorRole
+from semantic_kernel.contents import AuthorRole, ChatHistory, ChatMessageContent
 
 from ..config import AppSettings, Provider
 from ..connectors import (
@@ -26,36 +26,36 @@ class KernelConfigurationError(Exception):
 
 class KernelManager:
     """Manages Semantic Kernel instance and configuration."""
-    
+
     def __init__(self, settings: Optional[AppSettings] = None) -> None:
         """Initialize the kernel manager.
-        
+
         Args:
             settings: Application settings instance
         """
         from ..config import settings as default_settings
-        
+
         self._settings = settings or default_settings
         self._kernel: Optional[sk.Kernel] = None
-        self._chat_service: Optional[Any] = None
+        self._chat_service: Optional[Union[OpenAIChatCompletion, AzureChatCompletion, AnthropicChatCompletion]] = None
         self._current_config: Dict[str, Any] = {}
         self.config: Dict[str, Any] = {}  # legacy public config dict
-        
+
     @property
     def is_configured(self) -> bool:
         """Check if kernel is properly configured."""
         return self._kernel is not None and self._chat_service is not None
-    
+
     @property
     def current_provider(self) -> Optional[Provider]:
         """Get the currently configured provider."""
         return self._current_config.get("provider")
-    
+
     @property
     def current_model(self) -> Optional[str]:
         """Get the currently configured model."""
         return self._current_config.get("model")
-    
+
     def configure(
         self,
         provider: Provider,
@@ -66,7 +66,7 @@ class KernelManager:
         **kwargs: Any,
     ) -> bool:
         """Configure the kernel with specified provider and model.
-        
+
         Args:
             provider: LLM provider to use
             model: Model name/ID
@@ -74,10 +74,10 @@ class KernelManager:
             endpoint: Azure endpoint (for Azure OpenAI)
             deployment_name: Azure deployment name (for Azure OpenAI)
             **kwargs: Additional configuration parameters
-            
+
         Returns:
             True if configuration successful, False otherwise
-            
+
         Raises:
             KernelConfigurationError: If configuration fails
         """
@@ -85,18 +85,22 @@ class KernelManager:
             # Get API key from settings if not provided
             if not api_key:
                 api_key = self._settings.get_api_key(provider)
-                
+
             if not api_key:
                 raise KernelConfigurationError(f"No API key available for {provider}")
-            
+
             # Create new kernel
             kernel = sk.Kernel()
-            
+
             # Configure based on provider
+            chat_service: Union[OpenAIChatCompletion, AzureChatCompletion, AnthropicChatCompletion]
+
             if provider == Provider.OPENAI:
                 # Filter out execution settings from constructor kwargs
-                constructor_kwargs = {k: v for k, v in kwargs.items()
-                                    if k not in ['temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty']}
+                constructor_kwargs = {
+                    k: v for k, v in kwargs.items()
+                    if k not in ['temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty']
+                }
 
                 chat_service = OpenAIChatCompletion(
                     ai_model_id=model,
@@ -115,8 +119,10 @@ class KernelManager:
                     )
 
                 # Filter out execution settings from constructor kwargs
-                constructor_kwargs = {k: v for k, v in kwargs.items()
-                                    if k not in ['temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty']}
+                constructor_kwargs = {
+                    k: v for k, v in kwargs.items()
+                    if k not in ['temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty']
+                }
 
                 chat_service = AzureChatCompletion(
                     deployment_name=deployment_name,
@@ -126,8 +132,10 @@ class KernelManager:
                 )
             elif provider == Provider.ANTHROPIC:
                 # Filter out execution settings from constructor kwargs
-                constructor_kwargs = {k: v for k, v in kwargs.items()
-                                    if k not in ['temperature', 'max_tokens', 'top_p', 'top_k']}
+                constructor_kwargs = {
+                    k: v for k, v in kwargs.items()
+                    if k not in ['temperature', 'max_tokens', 'top_p', 'top_k']
+                }
 
                 chat_service = AnthropicChatCompletion(
                     api_key=api_key,
@@ -136,10 +144,10 @@ class KernelManager:
                 )
             else:
                 raise KernelConfigurationError(f"Unsupported provider: {provider}")
-            
+
             # Add service to kernel
             kernel.add_service(chat_service)
-            
+
             # Store configuration
             self._kernel = kernel
             self._chat_service = chat_service
@@ -151,10 +159,10 @@ class KernelManager:
                 "deployment_name": deployment_name,
             }
             self.config = self._current_config.copy()  # keep legacy mirror
-            
+
             logger.info(f"Kernel configured successfully with {provider.value}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to configure kernel: {e}")
             self._kernel = None
@@ -162,7 +170,7 @@ class KernelManager:
             self._current_config = {}
             self.config = {}
             raise KernelConfigurationError(f"Configuration failed: {e}") from e
-    
+
     async def get_response(
         self,
         prompt: str,
@@ -204,7 +212,7 @@ class KernelManager:
             execution_settings = self._get_execution_settings(temperature, max_tokens)
 
             # Use the more reliable get_chat_message_contents method (plural)
-            response_list = await self._chat_service.get_chat_message_contents(
+            response_list = await self._chat_service.get_chat_message_contents(  # type: ignore[union-attr]
                 chat_history=chat_history,
                 settings=execution_settings,
             )
@@ -268,7 +276,7 @@ class KernelManager:
             execution_settings = self._get_execution_settings(temperature, max_tokens)
 
             # Use streaming method
-            async for chunk in self._chat_service.get_streaming_chat_message_contents(
+            async for chunk in self._chat_service.get_streaming_chat_message_contents(  # type: ignore[union-attr]
                 chat_history=chat_history,
                 settings=execution_settings,
             ):
@@ -287,10 +295,10 @@ class KernelManager:
         except Exception as e:
             logger.error(f"Error getting streaming response: {e}")
             raise
-    
+
     def get_kernel_info(self) -> Dict[str, Any]:
         """Get information about the current kernel configuration.
-        
+
         Returns:
             Dictionary containing kernel configuration info
         """
@@ -299,15 +307,15 @@ class KernelManager:
             "provider": self.current_provider.value if self.current_provider else None,
             "model": self.current_model,
         }
-        
+
         if self.is_configured:
             base_info.update({
                 "endpoint": self._current_config.get("endpoint"),
                 "deployment_name": self._current_config.get("deployment_name"),
             })
-        
+
         return base_info
-    
+
     def _get_execution_settings(
         self,
         temperature: Optional[float] = None,
@@ -334,15 +342,15 @@ class KernelManager:
                 temperature=temp,
                 max_tokens=tokens
             )
-    
+
     def get_underlying_kernel(self) -> Optional[sk.Kernel]:
         return self._kernel
-    
+
     # Legacy property accessors
     @property
     def kernel(self) -> Optional[sk.Kernel]:  # type: ignore[name-defined]
         return self._kernel
-    
+
     @property
     def chat_service(self) -> Optional[Any]:
         return self._chat_service

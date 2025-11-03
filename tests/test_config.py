@@ -1,14 +1,14 @@
 """Tests for configuration management."""
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from semantic_kernel_ui.config import AppConfig
 
 
 class TestConfiguration(unittest.TestCase):
     """Unit tests for configuration management"""
-    
+
     def test_app_config_initialization(self):
         """Test AppConfig initialization"""
         config = AppConfig()
@@ -16,7 +16,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertTrue(hasattr(config, 'openai_api_key'))
         self.assertTrue(hasattr(config, 'azure_api_key'))
         self.assertTrue(hasattr(config, 'anthropic_api_key'))
-    
+
     def test_provider_validation(self):
         """Test provider validation"""
         config = AppConfig()

@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from typing import Dict, List
-from .core.agent_manager import Agent, AgentRole
+
+from .core.agent_manager import AgentRole
 
 
 class AgentPresets:
@@ -267,7 +268,7 @@ class AgentPresets:
                 "name": key,
                 "title": config["name"],
                 "description": config["description"],
-                "agents": len(config["agents"]),
+                "agents": str(len(config["agents"])),  # Convert to str for consistent dict typing
                 "rounds": config["max_rounds"]
             }
             for key, config in presets.items()

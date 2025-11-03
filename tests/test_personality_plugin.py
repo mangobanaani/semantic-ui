@@ -1,6 +1,7 @@
 """Tests for Personality Plugin."""
 
 import pytest
+
 from semantic_kernel_ui.plugins import PersonalityPlugin
 
 

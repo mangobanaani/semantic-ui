@@ -1,4 +1,5 @@
 """Read-only file indexing and search plugin."""
+
 from __future__ import annotations
 
 import os
@@ -8,11 +9,13 @@ from typing import Annotated, List, Optional
 try:
     from semantic_kernel.functions import kernel_function
 except ImportError:  # Fallback decorator
-    def kernel_function(name: str = None, description: str = None):
+
+    def kernel_function(name: Optional[str] = None, description: Optional[str] = None):  # type: ignore[misc]
         def decorator(func):
             func._sk_name = name
             func._sk_description = description
             return func
+
         return decorator
 
 
@@ -29,7 +32,7 @@ class FileIndexPlugin:
     def __init__(
         self,
         allowed_directories: Optional[List[str]] = None,
-        max_file_size_mb: int = 10
+        max_file_size_mb: int = 10,
     ):
         """Initialize file index plugin.
 
@@ -45,8 +48,7 @@ class FileIndexPlugin:
 
         # Resolve all allowed paths to absolute paths
         self.allowed_directories = [
-            os.path.realpath(os.path.expanduser(path))
-            for path in allowed_directories
+            os.path.realpath(os.path.expanduser(path)) for path in allowed_directories
         ]
 
     def _validate_path(self, file_path: str) -> tuple[bool, str]:
@@ -74,20 +76,52 @@ class FileIndexPlugin:
     def _is_text_file(self, file_path: str) -> bool:
         """Check if file appears to be a text file."""
         text_extensions = {
-            '.txt', '.md', '.py', '.js', '.ts', '.jsx', '.tsx', '.json', '.yaml', '.yml',
-            '.toml', '.ini', '.cfg', '.conf', '.sh', '.bash', '.sql', '.css', '.html',
-            '.xml', '.csv', '.log', '.env', '.gitignore', '.dockerfile', '.rs', '.go',
-            '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.rb', '.php', '.swift', '.kt'
+            ".txt",
+            ".md",
+            ".py",
+            ".js",
+            ".ts",
+            ".jsx",
+            ".tsx",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".toml",
+            ".ini",
+            ".cfg",
+            ".conf",
+            ".sh",
+            ".bash",
+            ".sql",
+            ".css",
+            ".html",
+            ".xml",
+            ".csv",
+            ".log",
+            ".env",
+            ".gitignore",
+            ".dockerfile",
+            ".rs",
+            ".go",
+            ".java",
+            ".c",
+            ".cpp",
+            ".h",
+            ".hpp",
+            ".cs",
+            ".rb",
+            ".php",
+            ".swift",
+            ".kt",
         }
         return Path(file_path).suffix.lower() in text_extensions
 
-    @kernel_function(
+    @kernel_function(  # type: ignore[misc]
         name="search_files",
-        description="Search for files by name pattern in allowed directories"
+        description="Search for files by name pattern in allowed directories",
     )
     def search_files(
-        self,
-        pattern: Annotated[str, "File name pattern (e.g., '*.py' or 'config')"]
+        self, pattern: Annotated[str, "File name pattern (e.g., '*.py' or 'config')"]
     ) -> Annotated[str, "List of matching files"]:
         """Search for files matching a pattern.
 
@@ -105,7 +139,7 @@ class FileIndexPlugin:
             try:
                 for root, dirs, files in os.walk(allowed_dir):
                     # Skip hidden directories
-                    dirs[:] = [d for d in dirs if not d.startswith('.')]
+                    dirs[:] = [d for d in dirs if not d.startswith(".")]
 
                     for filename in files:
                         if fnmatch.fnmatch(filename, f"*{pattern}*"):
@@ -118,15 +152,16 @@ class FileIndexPlugin:
         if not matches:
             return f"No files found matching pattern: {pattern}"
 
-        return f"Found {len(matches)} file(s):\n" + "\n".join(f"  {m}" for m in matches[:50])
+        return f"Found {len(matches)} file(s):\n" + "\n".join(
+            f"  {m}" for m in matches[:50]
+        )
 
-    @kernel_function(
+    @kernel_function(  # type: ignore[misc]
         name="read_file",
-        description="Read contents of a text file (read-only, with security checks)"
+        description="Read contents of a text file (read-only, with security checks)",
     )
     def read_file(
-        self,
-        file_path: Annotated[str, "Path to file"]
+        self, file_path: Annotated[str, "Path to file"]
     ) -> Annotated[str, "File contents"]:
         """Read contents of a text file with security validation.
 
@@ -159,24 +194,22 @@ class FileIndexPlugin:
             return f"Not a text file: {file_path}"
 
         try:
-            with open(real_path, 'r', encoding='utf-8') as f:
+            with open(real_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Include file info
-            lines = content.count('\n') + 1
+            lines = content.count("\n") + 1
             return f"File: {file_path} ({lines} lines, {file_size} bytes)\n\n{content}"
         except UnicodeDecodeError:
             return f"File is not valid UTF-8 text: {file_path}"
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
-    @kernel_function(
-        name="list_directory",
-        description="List contents of a directory (read-only)"
+    @kernel_function(  # type: ignore[misc]
+        name="list_directory", description="List contents of a directory (read-only)"
     )
     def list_directory(
-        self,
-        directory_path: Annotated[str, "Path to directory"] = "."
+        self, directory_path: Annotated[str, "Path to directory"] = "."
     ) -> Annotated[str, "Directory contents"]:
         """List directory contents with security validation.
 
@@ -209,7 +242,7 @@ class FileIndexPlugin:
 
             for item in items:
                 # Skip hidden files
-                if item.startswith('.'):
+                if item.startswith("."):
                     continue
 
                 full_path = os.path.join(real_path, item)
@@ -231,20 +264,21 @@ class FileIndexPlugin:
             if files:
                 result.append(f"\nFiles ({len(files)}):")
                 for name, size in sorted(files):
-                    size_str = f"{size:,} bytes" if size < 1024 else f"{size/1024:.1f} KB"
+                    size_str = (
+                        f"{size:,} bytes" if size < 1024 else f"{size/1024:.1f} KB"
+                    )
                     result.append(f"  {name} ({size_str})")
 
             return "\n".join(result)
         except Exception as e:
             return f"Error listing directory: {str(e)}"
 
-    @kernel_function(
+    @kernel_function(  # type: ignore[misc]
         name="get_file_info",
-        description="Get metadata about a file (size, type, modification time)"
+        description="Get metadata about a file (size, type, modification time)",
     )
     def get_file_info(
-        self,
-        file_path: Annotated[str, "Path to file"]
+        self, file_path: Annotated[str, "Path to file"]
     ) -> Annotated[str, "File information"]:
         """Get file metadata.
 
@@ -293,7 +327,7 @@ class FileIndexPlugin:
                 f"Type: {file_type}",
                 f"Size: {size_str}",
                 f"Modified: {mtime.strftime('%Y-%m-%d %H:%M:%S')}",
-                f"Readable: {'Yes' if self._is_text_file(real_path) else 'No (binary file)'}"
+                f"Readable: {'Yes' if self._is_text_file(real_path) else 'No (binary file)'}",
             ]
 
             return "\n".join(info)

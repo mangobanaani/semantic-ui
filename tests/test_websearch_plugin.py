@@ -1,8 +1,6 @@
 """Tests for the WebSearchPlugin real search logic (mocked HTTP)."""
 from __future__ import annotations
 
-import os
-import types
 import pytest
 
 from semantic_kernel_ui.plugins import WebSearchPlugin

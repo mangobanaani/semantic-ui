@@ -1,6 +1,7 @@
 """Tests for Calculator Plugin."""
 
 import pytest
+
 from semantic_kernel_ui.plugins import CalculatorPlugin
 
 
@@ -133,6 +134,6 @@ class TestCalculatorPlugin:
     def test_conversion_case_insensitive(self, plugin):
         """Test that unit conversions are case-insensitive."""
         result1 = plugin.convert_units(1, "m", "cm")
-        result2 = plugin.convert_units(1, "M", "CM")
+        _ = plugin.convert_units(1, "M", "CM")  # Should not raise error
         # Both should work (temperature is uppercase, others lowercase)
         assert "100" in result1

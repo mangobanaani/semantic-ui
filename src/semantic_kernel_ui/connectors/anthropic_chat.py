@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, List
 
 from anthropic import AsyncAnthropic
-from semantic_kernel.connectors.ai.chat_completion_client_base import ChatCompletionClientBase
-from semantic_kernel.connectors.ai.prompt_execution_settings import PromptExecutionSettings
-from semantic_kernel.contents import ChatHistory, ChatMessageContent, AuthorRole, StreamingChatMessageContent
+from semantic_kernel.connectors.ai.chat_completion_client_base import (
+    ChatCompletionClientBase,
+)
+from semantic_kernel.connectors.ai.prompt_execution_settings import (
+    PromptExecutionSettings,
+)
+from semantic_kernel.contents import (
+    AuthorRole,
+    ChatHistory,
+    ChatMessageContent,
+    StreamingChatMessageContent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +95,7 @@ class AnthropicChatCompletion(ChatCompletionClientBase):
             request_params["top_k"] = settings.top_k
 
         # Make API call
-        response = await self.client.messages.create(**request_params)
+        response = await self.client.messages.create(**request_params)  # type: ignore[arg-type]
 
         # Extract content from response
         content = ""
@@ -145,13 +154,14 @@ class AnthropicChatCompletion(ChatCompletionClientBase):
             request_params["top_k"] = settings.top_k
 
         # Stream response
-        async with self.client.messages.stream(**request_params) as stream:
+        async with self.client.messages.stream(**request_params) as stream:  # type: ignore[arg-type]
             async for text in stream.text_stream:
                 if text:
                     yield [
-                        StreamingChatMessageContent(
+                        StreamingChatMessageContent(  # type: ignore[call-overload]
                             role=AuthorRole.ASSISTANT,
                             content=text,
+                            choice_index=0,
                             ai_model_id=self.model,
                         )
                     ]

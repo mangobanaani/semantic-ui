@@ -4,7 +4,9 @@ Wraps the built-in Semantic Kernel Azure OpenAI connector for consistency.
 """
 from __future__ import annotations
 
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion as SKAzureChatCompletion
+from semantic_kernel.connectors.ai.open_ai import (
+    AzureChatCompletion as SKAzureChatCompletion,
+)
 
 
 class AzureChatCompletion(SKAzureChatCompletion):

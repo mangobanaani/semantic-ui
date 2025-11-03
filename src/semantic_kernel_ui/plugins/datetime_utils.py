@@ -1,28 +1,31 @@
 """DateTime utilities plugin."""
+
 from __future__ import annotations
 
+import zoneinfo
 from datetime import datetime, timedelta
 from typing import Annotated
-import zoneinfo
 
 try:
     from semantic_kernel.functions import kernel_function
 except ImportError:
-    def kernel_function(name: str = None, description: str = None):
+    from typing import Optional
+
+    def kernel_function(name: Optional[str] = None, description: Optional[str] = None):  # type: ignore[misc]
         def decorator(func):
             func._sk_name = name
             func._sk_description = description
             return func
+
         return decorator
 
 
 class DateTimePlugin:
     """Plugin for date and time operations."""
 
-    @kernel_function(name="get_current_time", description="Get current date and time")
+    @kernel_function(name="get_current_time", description="Get current date and time")  # type: ignore[misc]
     def get_current_time(
-        self,
-        timezone: Annotated[str, "Timezone (e.g., 'UTC', 'US/Eastern')"] = "UTC"
+        self, timezone: Annotated[str, "Timezone (e.g., 'UTC', 'US/Eastern')"] = "UTC"
     ) -> Annotated[str, "Current date and time"]:
         """Get current date and time in specified timezone.
 
@@ -37,13 +40,15 @@ class DateTimePlugin:
             now = datetime.now(tz)
             return f"{now.strftime('%Y-%m-%d %H:%M:%S %Z')}"
         except Exception as e:
-            return f"Error: {str(e)}. Use format like 'UTC', 'US/Eastern', 'Europe/London'"
+            return (
+                f"Error: {str(e)}. Use format like 'UTC', 'US/Eastern', 'Europe/London'"
+            )
 
-    @kernel_function(name="calculate_date_diff", description="Calculate difference between two dates")
+    @kernel_function(name="calculate_date_diff", description="Calculate difference between two dates")  # type: ignore[misc]
     def calculate_date_diff(
         self,
         date1: Annotated[str, "First date (YYYY-MM-DD)"],
-        date2: Annotated[str, "Second date (YYYY-MM-DD)"]
+        date2: Annotated[str, "Second date (YYYY-MM-DD)"],
     ) -> Annotated[str, "Difference in days"]:
         """Calculate the difference between two dates.
 
@@ -62,11 +67,11 @@ class DateTimePlugin:
         except ValueError as e:
             return f"Error: Invalid date format. Use YYYY-MM-DD (e.g., 2024-01-15). {str(e)}"
 
-    @kernel_function(name="add_days", description="Add or subtract days from a date")
+    @kernel_function(name="add_days", description="Add or subtract days from a date")  # type: ignore[misc]
     def add_days(
         self,
         date: Annotated[str, "Date (YYYY-MM-DD)"],
-        days: Annotated[int, "Number of days to add (negative to subtract)"]
+        days: Annotated[int, "Number of days to add (negative to subtract)"],
     ) -> Annotated[str, "New date"]:
         """Add or subtract days from a date.
 
@@ -84,11 +89,11 @@ class DateTimePlugin:
         except ValueError as e:
             return f"Error: Invalid date format. Use YYYY-MM-DD. {str(e)}"
 
-    @kernel_function(name="format_date", description="Format a date in various styles")
+    @kernel_function(name="format_date", description="Format a date in various styles")  # type: ignore[misc]
     def format_date(
         self,
         date: Annotated[str, "Date (YYYY-MM-DD)"],
-        format_style: Annotated[str, "Format: 'long', 'short', 'iso', 'us'"] = "long"
+        format_style: Annotated[str, "Format: 'long', 'short', 'iso', 'us'"] = "long",
     ) -> Annotated[str, "Formatted date"]:
         """Format a date in different styles.
 
@@ -106,7 +111,7 @@ class DateTimePlugin:
                 "long": d.strftime("%A, %B %d, %Y"),
                 "short": d.strftime("%b %d, %Y"),
                 "iso": d.strftime("%Y-%m-%d"),
-                "us": d.strftime("%m/%d/%Y")
+                "us": d.strftime("%m/%d/%Y"),
             }
 
             result = formats.get(format_style.lower(), formats["long"])
@@ -114,12 +119,12 @@ class DateTimePlugin:
         except ValueError as e:
             return f"Error: Invalid date format. Use YYYY-MM-DD. {str(e)}"
 
-    @kernel_function(name="convert_timezone", description="Convert time between timezones")
+    @kernel_function(name="convert_timezone", description="Convert time between timezones")  # type: ignore[misc]
     def convert_timezone(
         self,
         time: Annotated[str, "Time (HH:MM)"],
         from_tz: Annotated[str, "Source timezone"],
-        to_tz: Annotated[str, "Target timezone"]
+        to_tz: Annotated[str, "Target timezone"],
     ) -> Annotated[str, "Converted time"]:
         """Convert time between timezones.
 
@@ -134,7 +139,9 @@ class DateTimePlugin:
         try:
             now = datetime.now()
             time_obj = datetime.strptime(time, "%H:%M")
-            dt = now.replace(hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0)
+            dt = now.replace(
+                hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0
+            )
 
             source_tz = zoneinfo.ZoneInfo(from_tz)
             target_tz = zoneinfo.ZoneInfo(to_tz)
@@ -146,10 +153,9 @@ class DateTimePlugin:
         except Exception as e:
             return f"Error: {str(e)}. Use timezone names like 'UTC', 'US/Eastern', 'Asia/Tokyo'"
 
-    @kernel_function(name="get_day_info", description="Get detailed information about a date")
+    @kernel_function(name="get_day_info", description="Get detailed information about a date")  # type: ignore[misc]
     def get_day_info(
-        self,
-        date: Annotated[str, "Date (YYYY-MM-DD)"]
+        self, date: Annotated[str, "Date (YYYY-MM-DD)"]
     ) -> Annotated[str, "Day information"]:
         """Get detailed information about a specific date.
 

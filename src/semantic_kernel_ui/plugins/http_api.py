@@ -1,4 +1,5 @@
 """HTTP/API plugin for making web requests."""
+
 from __future__ import annotations
 
 import json
@@ -8,11 +9,14 @@ from urllib.parse import urlparse
 try:
     from semantic_kernel.functions import kernel_function
 except ImportError:
-    def kernel_function(name: str = None, description: str = None):
+    from typing import Optional
+
+    def kernel_function(name: Optional[str] = None, description: Optional[str] = None):  # type: ignore[misc]
         def decorator(func):
             func._sk_name = name
             func._sk_description = description
             return func
+
         return decorator
 
 
@@ -41,13 +45,13 @@ class HttpApiPlugin:
         try:
             parsed = urlparse(url)
 
-            if parsed.scheme not in ['http', 'https']:
+            if parsed.scheme not in ["http", "https"]:
                 return False, "Only HTTP/HTTPS URLs are allowed"
 
             if not parsed.netloc:
                 return False, "Invalid URL format"
 
-            blocked_domains = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
+            blocked_domains = ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
             if any(blocked in parsed.netloc.lower() for blocked in blocked_domains):
                 return False, "Local URLs are not allowed"
 
@@ -55,10 +59,9 @@ class HttpApiPlugin:
         except Exception as e:
             return False, f"Invalid URL: {str(e)}"
 
-    @kernel_function(name="http_get", description="Make HTTP GET request")
+    @kernel_function(name="http_get", description="Make HTTP GET request")  # type: ignore[misc]
     def http_get(
-        self,
-        url: Annotated[str, "URL to fetch"]
+        self, url: Annotated[str, "URL to fetch"]
     ) -> Annotated[str, "Response content"]:
         """Make HTTP GET request to a URL.
 
@@ -78,26 +81,28 @@ class HttpApiPlugin:
             response = requests.get(
                 url,
                 timeout=self.timeout,
-                headers={'User-Agent': 'SemanticKernelUI/1.0'},
-                stream=True
+                headers={"User-Agent": "SemanticKernelUI/1.0"},
+                stream=True,
             )
 
-            content_length = int(response.headers.get('content-length', 0))
+            content_length = int(response.headers.get("content-length", 0))
             if content_length > self.max_size:
                 return f"Error: Response too large ({content_length} bytes, max {self.max_size})"
 
             response.raise_for_status()
 
-            content_type = response.headers.get('content-type', '')
+            content_type = response.headers.get("content-type", "")
 
-            if 'application/json' in content_type:
+            if "application/json" in content_type:
                 try:
                     data = response.json()
                     return f"Status: {response.status_code}\nContent-Type: {content_type}\n\n{json.dumps(data, indent=2)}"
                 except json.JSONDecodeError:
-                    return f"Status: {response.status_code}\nError: Invalid JSON response"
+                    return (
+                        f"Status: {response.status_code}\nError: Invalid JSON response"
+                    )
 
-            text = response.text[:self.max_size]
+            text = response.text[: self.max_size]
             return f"Status: {response.status_code}\nContent-Type: {content_type}\n\n{text[:1000]}{'...' if len(text) > 1000 else ''}"
 
         except requests.Timeout:
@@ -107,10 +112,9 @@ class HttpApiPlugin:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    @kernel_function(name="check_url_status", description="Check HTTP status of a URL")
+    @kernel_function(name="check_url_status", description="Check HTTP status of a URL")  # type: ignore[misc]
     def check_url_status(
-        self,
-        url: Annotated[str, "URL to check"]
+        self, url: Annotated[str, "URL to check"]
     ) -> Annotated[str, "URL status information"]:
         """Check the HTTP status of a URL.
 
@@ -150,10 +154,9 @@ class HttpApiPlugin:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    @kernel_function(name="parse_json_response", description="Parse JSON from API response")
+    @kernel_function(name="parse_json_response", description="Parse JSON from API response")  # type: ignore[misc]
     def parse_json_response(
-        self,
-        json_text: Annotated[str, "JSON text to parse"]
+        self, json_text: Annotated[str, "JSON text to parse"]
     ) -> Annotated[str, "Parsed JSON"]:
         """Parse and format JSON response.
 
@@ -178,10 +181,9 @@ class HttpApiPlugin:
         except json.JSONDecodeError as e:
             return f"Error: Invalid JSON - {str(e)}"
 
-    @kernel_function(name="fetch_public_api", description="Fetch data from common public APIs")
+    @kernel_function(name="fetch_public_api", description="Fetch data from common public APIs")  # type: ignore[misc]
     def fetch_public_api(
-        self,
-        api_name: Annotated[str, "API name: 'ipify', 'time', 'jokes'"]
+        self, api_name: Annotated[str, "API name: 'ipify', 'time', 'jokes'"]
     ) -> Annotated[str, "API response"]:
         """Fetch data from common public APIs.
 

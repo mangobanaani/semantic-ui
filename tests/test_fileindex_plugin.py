@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from semantic_kernel_ui.plugins import FileIndexPlugin
 
 
