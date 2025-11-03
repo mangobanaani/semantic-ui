@@ -18,6 +18,7 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 # Now import our modules
+from semantic_kernel_ui.auth import AuthConfig, AuthManager
 from semantic_kernel_ui.config import AppSettings, ConversationStyle, Provider
 from semantic_kernel_ui.core import AgentManager, KernelManager
 from semantic_kernel_ui.core.agent_manager import AgentRole
@@ -51,6 +52,7 @@ class SemanticKernelApp:
         self.settings = settings or default_settings
         # Legacy compatibility: expose .config like older versions/tests expect
         self.config = self.settings  # type: ignore[attr-defined]
+        self.auth_manager = AuthManager(AuthConfig())
         self._initialize_session_state()
 
     def _initialize_session_state(self) -> None:
@@ -88,6 +90,12 @@ class SemanticKernelApp:
     def run(self) -> None:
         """Run the Streamlit application."""
         self._configure_page()
+
+        # Check authentication
+        if not self.auth_manager.is_authenticated():
+            self.auth_manager.render_login_page()
+            return
+
         self._render_sidebar()
         self._render_main_content()
 
@@ -158,6 +166,16 @@ class SemanticKernelApp:
         """Render the configuration sidebar."""
         with st.sidebar:
             st.header("Configuration")
+
+            # Show user info and logout if authenticated
+            if self.auth_manager.config.enable_auth:
+                user = self.auth_manager.get_current_user()
+                if user:
+                    st.info(f"Logged in as: **{user.name}**\n\n{user.email}")
+                    if st.button("Logout", use_container_width=True):
+                        self.auth_manager.logout()
+                        st.rerun()
+                    st.markdown("---")
 
             # Dark mode toggle at the top
             dark_mode = st.toggle(

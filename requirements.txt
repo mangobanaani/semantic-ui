@@ -12,3 +12,9 @@ uvicorn[standard]>=0.32.0
 redis>=5.2.0
 requests>=2.31.0
 typing-extensions
+PyJWT>=2.8.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+pyotp>=2.9.0
+qrcode[pil]>=7.4.2

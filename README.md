@@ -11,7 +11,7 @@ A web-based interface for Large Language Models built with Microsoft Semantic Ke
 - **Conversation Memory**: Persistent storage with semantic search via ChromaDB
 - **Streaming Responses**: Real-time token-by-token output
 
-### Built-in Plugins (8)
+### Built-in Plugins
 
 **Computation & Utilities**
 - **Calculator**: Mathematical operations, unit conversions (length, weight, temperature)
@@ -23,11 +23,12 @@ A web-based interface for Large Language Models built with Microsoft Semantic Ke
 - **File Index**: Safe read-only file browsing with path restrictions
 - **Web Search**: Internet search via SerpAPI or Google Custom Search
 - **Export**: Conversation export to Markdown, JSON, CSV formats
+- **Document Intelligence**: OCR and document analysis with Tesseract (local/free) or Azure AI (cloud/production)
 
 **Customization**
 - **Personality**: Adjust response tone (friendly, professional, technical, creative, casual)
 
-### Agent Presets (5)
+### Agent Presets
 
 Pre-configured multi-agent workflows for common tasks:
 - **Code Review**: Developer + Quality Reviewer
@@ -62,6 +63,34 @@ cp .env.example .env
 streamlit run src/semantic_kernel_ui/app.py
 ```
 
+## Docker Deployment
+
+### Quick Start with Docker
+
+1. Build and run with Docker Compose:
+```bash
+docker-compose up -d
+```
+
+2. Access the application:
+- **HTTPS**: https://localhost (production mode with nginx)
+- **HTTP**: http://localhost (development mode, direct Streamlit on default port)
+
+### Docker Configuration
+
+The application includes production-ready Docker setup:
+- **Streamlit**: Runs as non-root user
+- **Nginx**: Reverse proxy with TLS, security headers, and rate limiting
+- **Persistent Storage**: Conversation memory and vector DB preserved in `./memory`
+
+### Security Notes
+
+Before deploying to production:
+1. Change the default nginx password in `nginx/nginx.conf`
+2. Replace self-signed certificates with valid TLS certificates
+3. Update CORS and CSP headers for your domain
+4. Review and adjust rate limiting settings as needed
+
 ## Configuration
 
 ### API Providers
@@ -90,8 +119,8 @@ ANTHROPIC_API_KEY=your-anthropic-key
 MEMORY_PERSIST_DIRECTORY=./memory          # Conversation storage directory
 VECTOR_DB_DIRECTORY=./memory/vector_db     # ChromaDB vector storage
 USE_VECTOR_DB=true                         # Enable semantic search
-DEFAULT_SEARCH_RESULTS=5                   # Default search result count (1-50)
-MAX_PAGINATION_LIMIT=50                    # Max pagination limit (1-200)
+DEFAULT_SEARCH_RESULTS=5                   # Default search result count
+MAX_PAGINATION_LIMIT=50                    # Max pagination limit
 ```
 
 **Web Search Integration**
@@ -108,12 +137,58 @@ ALLOWED_DIRECTORIES=.                      # Comma-separated allowed directories
 MAX_FILE_SIZE_MB=10                        # Maximum file size for reading
 ```
 
+**Document Intelligence Plugin**
+```bash
+ENABLE_DOCUMENT_INTELLIGENCE=true          # Enable document OCR/analysis
+ENABLE_LLM_CLASSIFICATION=true             # Use LLM for document classification
+ENABLE_TESSERACT_OCR=true                  # Enable Tesseract OCR (local, free)
+ENABLE_AZURE_DOC_INTELLIGENCE=false        # Enable Azure AI (cloud, production)
+
+# Tesseract OCR (local, free)
+TESSERACT_CMD=                             # Auto-detect or set path
+TESSERACT_LANGUAGES=eng+fin+swe            # Supported languages
+
+# Azure AI Document Intelligence (cloud, production)
+AZURE_DOC_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
+AZURE_DOC_INTELLIGENCE_KEY=your-key
+
+# Performance Settings
+DOC_INTELLIGENCE_MAX_CONTENT_LENGTH=10000  # Max content length
+DOC_INTELLIGENCE_CACHE_RESULTS=true        # Cache OCR results
+```
+
 **Application Settings**
 ```bash
 APP_TITLE=Semantic Kernel UI               # Browser tab title
 DEBUG_MODE=false                           # Enable debug logging
-TEMPERATURE=0.7                            # Default model temperature (0.0-2.0)
+TEMPERATURE=0.7                            # Default model temperature
 MAX_TOKENS=2000                            # Default max response tokens
+```
+
+**Authentication** (Optional - disabled by default)
+```bash
+# Enable authentication
+ENABLE_AUTH=false
+
+# JWT Token Authentication (secret-based)
+JWT_SECRET=your-secret-key-change-this-in-production
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_HOURS=24
+
+# Google OAuth
+ENABLE_GOOGLE_OAUTH=false
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8501
+
+# Facebook OAuth
+ENABLE_FACEBOOK_OAUTH=false
+FACEBOOK_APP_ID=your-facebook-app-id
+FACEBOOK_APP_SECRET=your-facebook-app-secret
+FACEBOOK_REDIRECT_URI=http://localhost:8501
+
+# Restrict access to specific users (optional - comma-separated emails)
+ALLOWED_USERS=user1@example.com,user2@example.com
 ```
 
 ## Usage
@@ -144,6 +219,37 @@ MAX_TOKENS=2000                            # Default max response tokens
 3. Browse conversation history
 4. Export or delete conversations
 
+### Authentication
+
+Authentication is optional and disabled by default. When enabled, users must authenticate before accessing the application.
+
+**JWT Token Authentication:**
+1. Generate a token using the provided script:
+   ```bash
+   python scripts/generate_token.py --email user@example.com --name "User Name"
+   ```
+2. Copy the generated token
+3. Enter the token on the login page
+4. Click "Login with Token"
+
+**OAuth Authentication:**
+1. Set up OAuth credentials with Google or Facebook
+2. Configure the appropriate environment variables
+3. Click the OAuth provider button on the login page
+4. Authorize the application
+5. You'll be redirected back and automatically logged in
+
+**Restricting Access:**
+- Leave `ALLOWED_USERS` empty to allow any authenticated user
+- Set `ALLOWED_USERS` to a comma-separated list of emails to restrict access
+
+**Security Notes:**
+- Always use a strong, random `JWT_SECRET` in production
+- Never commit secrets to version control
+- Use HTTPS in production (OAuth providers require it)
+- Rotate JWT secrets periodically
+- Set appropriate token expiration times
+
 ## Development
 
 ### Project Structure
@@ -153,6 +259,8 @@ semantick/
 │   ├── app.py                 # Main Streamlit application
 │   ├── config.py              # Configuration management
 │   ├── agent_presets.py       # Multi-agent workflow templates
+│   ├── auth/                  # Authentication module
+│   │   └── auth_manager.py    # OAuth and JWT authentication
 │   ├── core/
 │   │   ├── kernel_manager.py  # LLM interaction manager
 │   │   └── agent_manager.py   # Multi-agent orchestration
@@ -163,7 +271,7 @@ semantick/
 │   ├── memory/
 │   │   ├── memory_manager.py  # Conversation storage
 │   │   └── vector_store.py    # ChromaDB integration
-│   └── plugins/               # 8 built-in plugins
+│   └── plugins/               # Built-in plugins
 │       ├── calculator.py
 │       ├── datetime_utils.py
 │       ├── text_processing.py
@@ -171,33 +279,59 @@ semantick/
 │       ├── filesystem.py
 │       ├── websearch.py
 │       ├── export.py
+│       ├── document_intelligence.py
+│       ├── ocr_backends.py
 │       └── personality.py
-└── tests/                     # Comprehensive test suite (115 tests)
+└── tests/                     # Comprehensive test suite
 ```
 
 ### Running Tests
 ```bash
+# Run all tests
 pytest tests/ -v
+
+# Run with coverage
+make test-cov
+
+# Run linting
+make lint
 ```
 
 ### Code Quality
-- Type hints throughout
-- Comprehensive test coverage (115 tests, 100% pass rate)
+- Type hints throughout with mypy compliance
+- Comprehensive test coverage with high pass rate
+- Code quality enforced with flake8
 - Security-focused design (read-only plugins, path validation)
 - Pydantic validation for all configurations
 
 ## Security
 
+A comprehensive security audit has been completed with strong scores across all areas.
+
 ### Plugin Security
 - **FileIndex**: Path whitelist, no write operations, size limits, symlink protection
-- **HTTP/API**: URL validation, localhost blocking, read-only, timeout protection
+- **HTTP/API**: URL validation, SSRF protection (localhost blocking), read-only, timeout protection
 - **Calculator**: Safe AST evaluation, no eval/exec usage
+- **Document Intelligence**: File type validation, size limits, safe OCR processing
+
+### Infrastructure Security
+- **Docker**: Non-root user, resource limits, minimal base image
+- **Nginx**: TLS 1.2+, HSTS, CSP headers, rate limiting
+- **Network**: HTTP to HTTPS redirect, security headers, server tokens hidden
 
 ### Best Practices
-- API keys stored in environment variables
+- API keys stored in environment variables only
 - No credentials in code or version control
 - Sandboxed file access with configurable restrictions
 - Request size and timeout limits
+- Input validation with Pydantic models
+- Path traversal protection
+
+### Recommendations
+- Add authentication layer for production deployments
+- Change default nginx password before deployment
+- Regular security updates for dependencies
+- Monitor rate limiting and access logs
 
 ## Plugin Development
 
