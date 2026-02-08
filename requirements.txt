@@ -1,9 +1,9 @@
-semantic-kernel>=1.35.2
+semantic-kernel>=1.39.3
 streamlit>=1.48
 python-dotenv>=1.0
 openai>=1.99.0
 anthropic>=0.39.0
-aiohttp>=3.12
+aiohttp>=3.13.3
 pydantic>=2.11
 pydantic-settings>=2.10
 chromadb>=0.5.0
@@ -18,3 +18,8 @@ google-auth-oauthlib>=1.1.0
 google-auth-httplib2>=0.1.1
 pyotp>=2.9.0
 qrcode[pil]>=7.4.2
+# Transitive dependency security pins
+urllib3>=2.6.3
+werkzeug>=3.1.5
+filelock>=3.20.3
+azure-core>=1.38.0
