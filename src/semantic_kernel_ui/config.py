@@ -120,7 +120,7 @@ class AppSettings(BaseSettings):
     @model_validator(mode="after")
     def validate_provider(self):
         # Basic provider sanity; extend if needed
-        if self.default_provider not in {Provider.OPENAI, Provider.AZURE_OPENAI, Provider.LOCAL}:
+        if self.default_provider not in {Provider.OPENAI, Provider.AZURE_OPENAI, Provider.ANTHROPIC, Provider.GOOGLE, Provider.LOCAL}:
             raise ValueError("Unsupported provider configured")
         # Additional strict validation used in tests: if provider selected ensure minimal config
         if self.default_provider == Provider.OPENAI and self.openai_api_key is not None:

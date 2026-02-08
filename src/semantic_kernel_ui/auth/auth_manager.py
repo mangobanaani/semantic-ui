@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 import jwt
@@ -154,9 +154,9 @@ class AuthManager:
         payload = {
             "email": email,
             "name": name,
-            "exp": datetime.utcnow()
+            "exp": datetime.now(timezone.utc)
             + timedelta(hours=self.config.jwt_expiration_hours),
-            "iat": datetime.utcnow(),
+            "iat": datetime.now(timezone.utc),
         }
 
         token = jwt.encode(
@@ -225,7 +225,7 @@ class AuthManager:
             email=email,
             name=name,
             provider="jwt",
-            authenticated_at=datetime.utcnow(),
+            authenticated_at=datetime.now(timezone.utc),
             mfa_verified=not self.config.enable_mfa,  # MFA handled separately for JWT
         )
 
@@ -282,7 +282,7 @@ class AuthManager:
                 name=name,
                 picture=picture,
                 provider="google",
-                authenticated_at=datetime.utcnow(),
+                authenticated_at=datetime.now(timezone.utc),
             )
 
             st.session_state["authenticated"] = True
@@ -336,7 +336,7 @@ class AuthManager:
                 name=name,
                 picture=picture,
                 provider="facebook",
-                authenticated_at=datetime.utcnow(),
+                authenticated_at=datetime.now(timezone.utc),
             )
 
             st.session_state["authenticated"] = True
@@ -613,8 +613,8 @@ class AuthManager:
             "name": user.name,
             "provider": user.provider,
             "mfa_verified": user.mfa_verified,
-            "exp": datetime.utcnow() + timedelta(hours=self.config.session_expiration_hours),
-            "iat": datetime.utcnow(),
+            "exp": datetime.now(timezone.utc) + timedelta(hours=self.config.session_expiration_hours),
+            "iat": datetime.now(timezone.utc),
             "jti": secrets.token_urlsafe(32),  # Unique session ID
         }
 
@@ -659,7 +659,7 @@ class AuthManager:
             email=session_data["email"],
             name=session_data["name"],
             provider=session_data["provider"],
-            authenticated_at=datetime.utcnow(),
+            authenticated_at=datetime.now(timezone.utc),
             mfa_verified=session_data.get("mfa_verified", False),
         )
 
@@ -771,7 +771,7 @@ class AuthManager:
                 name=name,
                 picture=picture,
                 provider="google",
-                authenticated_at=datetime.utcnow(),
+                authenticated_at=datetime.now(timezone.utc),
                 mfa_verified=not self.config.enable_mfa,  # Skip MFA for OAuth if not enabled
             )
 
@@ -847,7 +847,7 @@ class AuthManager:
                 name=name,
                 picture=picture,
                 provider="facebook",
-                authenticated_at=datetime.utcnow(),
+                authenticated_at=datetime.now(timezone.utc),
                 mfa_verified=not self.config.enable_mfa,
             )
 

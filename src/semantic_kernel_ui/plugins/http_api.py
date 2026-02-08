@@ -51,9 +51,24 @@ class HttpApiPlugin:
             if not parsed.netloc:
                 return False, "Invalid URL format"
 
-            blocked_domains = ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
-            if any(blocked in parsed.netloc.lower() for blocked in blocked_domains):
+            # Extract hostname without port
+            hostname = parsed.hostname or ""
+            hostname_lower = hostname.lower()
+
+            # Block localhost variants
+            blocked_hostnames = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
+            if hostname_lower in blocked_hostnames:
                 return False, "Local URLs are not allowed"
+
+            # Block private/reserved IP ranges
+            import ipaddress
+            try:
+                addr = ipaddress.ip_address(hostname)
+                if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local:
+                    return False, "Private/reserved IP addresses are not allowed"
+            except ValueError:
+                # Not an IP address (it's a hostname), which is fine
+                pass
 
             return True, ""
         except Exception as e:

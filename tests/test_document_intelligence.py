@@ -460,7 +460,7 @@ class TestDocumentIntelligencePlugin:
 
         assert key1 == key2
         assert key1 != key3
-        assert len(key1) == 32  # MD5 hash length
+        assert len(key1) == 64  # SHA-256 hash length
 
     def test_keyword_extraction(self, plugin_basic):
         """Test keyword extraction."""

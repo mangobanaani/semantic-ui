@@ -68,12 +68,12 @@ class VectorStore:
 
         if documents:
             try:
-                self.collection.add(
+                self.collection.upsert(
                     documents=documents,
                     metadatas=metadatas,  # type: ignore[arg-type]
                     ids=ids
                 )
-                logger.info(f"Added {len(documents)} messages to vector store")
+                logger.info(f"Upserted {len(documents)} messages in vector store")
             except Exception as e:
                 logger.error(f"Error adding to vector store: {e}")
 

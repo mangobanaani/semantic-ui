@@ -214,8 +214,12 @@ class DocumentIntelligencePlugin:
         }
 
     def _get_cache_key(self, file_path: str) -> str:
-        """Generate cache key for file."""
-        return hashlib.md5(file_path.encode()).hexdigest()
+        """Generate cache key for file, including modification time to detect changes."""
+        try:
+            mtime = str(os.path.getmtime(file_path))
+        except OSError:
+            mtime = ""
+        return hashlib.sha256(f"{file_path}:{mtime}".encode()).hexdigest()
 
     def _get_azure_client(self):
         """Lazy initialization of Azure Document Intelligence client."""
@@ -323,7 +327,7 @@ class DocumentIntelligencePlugin:
                 doc_type = DocumentType.DOCUMENTATION
                 confidence = 0.7
         # Data files
-        elif ext in [".csv", ".tsv", ".json", ".xml"]:
+        elif ext in [".csv", ".tsv", ".xml"]:
             doc_type = DocumentType.DATA
             confidence = 0.9
         # Logs

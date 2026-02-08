@@ -25,9 +25,13 @@ from semantic_kernel_ui.core.agent_manager import AgentRole
 from semantic_kernel_ui.memory import MemoryManager
 from semantic_kernel_ui.plugins import (
     CalculatorPlugin,
+    DateTimePlugin,
     DocumentIntelligencePlugin,
+    ExportPlugin,
     FileIndexPlugin,
+    HttpApiPlugin,
     PersonalityPlugin,
+    TextProcessingPlugin,
     WebSearchPlugin,
 )
 
@@ -321,10 +325,10 @@ class SemanticKernelApp:
             model = st.selectbox(
                 "Model",
                 [
+                    "claude-sonnet-4-5-20250929",
                     "claude-3-5-sonnet-20241022",
+                    "claude-3-5-haiku-20241022",
                     "claude-3-opus-20240229",
-                    "claude-3-sonnet-20240229",
-                    "claude-3-haiku-20240307",
                 ],
                 index=0,
                 help="Select the Anthropic model to use",
@@ -479,7 +483,7 @@ class SemanticKernelApp:
                     model = getattr(
                         st.session_state,
                         "anthropic_model",
-                        "claude-3-5-sonnet-20241022",
+                        "claude-sonnet-4-5-20250929",
                     )
                     success = st.session_state.kernel_manager.configure(
                         provider=provider, model=model, **config_kwargs
@@ -593,10 +597,7 @@ class SemanticKernelApp:
             )
 
         with col2:
-            st.image(
-                "https://via.placeholder.com/300x200?text=Semantic+Kernel+UI",
-                caption="Professional LLM Interface",
-            )
+            st.info("**Powered by Microsoft Semantic Kernel**\n\nMulti-provider LLM orchestration with plugins, memory, and multi-agent support.")
 
     def _render_single_agent_mode(self) -> None:
         """Render single agent chat interface."""
@@ -1031,10 +1032,18 @@ class SemanticKernelApp:
             # Render plugin interface
             if selected == "calculator":
                 self._render_calculator_plugin(plugin_map["calculator"])
+            elif selected == "datetime":
+                self._render_datetime_plugin(plugin_map["datetime"])
+            elif selected == "text_processing":
+                self._render_text_processing_plugin(plugin_map["text_processing"])
             elif selected == "web_search":
                 self._render_websearch_plugin(plugin_map["web_search"])
+            elif selected == "http_api":
+                self._render_http_api_plugin(plugin_map["http_api"])
             elif selected == "file_index":
                 self._render_filesystem_plugin(plugin_map["file_index"])
+            elif selected == "export":
+                self._render_export_plugin(plugin_map["export"])
             elif selected == "personality":
                 self._render_personality_plugin(plugin_map["personality"])
             elif selected == "document_intelligence":
@@ -1060,8 +1069,12 @@ class SemanticKernelApp:
 
                 plugins = {
                     "calculator": CalculatorPlugin(),
+                    "datetime": DateTimePlugin(),
+                    "text_processing": TextProcessingPlugin(),
                     "web_search": WebSearchPlugin(),
+                    "http_api": HttpApiPlugin(),
                     "file_index": file_index,
+                    "export": ExportPlugin(),
                     "personality": PersonalityPlugin(),
                 }
 
@@ -1098,10 +1111,25 @@ class SemanticKernelApp:
                 "functions": ["calculate", "convert_units"],
                 "examples": ["2 + 2 * 3", "x = 5; x * 10", "convert 10 km -> m"],
             },
+            "datetime": {
+                "description": "Date/time operations, timezone conversion, date calculations.",
+                "functions": ["get_current_time", "calculate_date_diff", "add_days", "format_date", "convert_timezone", "get_day_info"],
+                "examples": ["UTC", "2024-01-15 to 2024-12-31", "Europe/Helsinki"],
+            },
+            "text_processing": {
+                "description": "Text analysis, encoding, hashing, and formatting.",
+                "functions": ["count_words", "format_json", "encode_base64", "decode_base64", "generate_hash", "extract_urls", "convert_case"],
+                "examples": ["Hello World", '{"key": "value"}', "sha256"],
+            },
             "web_search": {
                 "description": "Search the web via SerpAPI or Google CSE.",
                 "functions": ["search_web"],
                 "examples": ["latest ai research", "python asyncio tutorial"],
+            },
+            "http_api": {
+                "description": "Make HTTP GET requests and check URL status (read-only, SSRF-protected).",
+                "functions": ["http_get", "check_url_status", "parse_json_response", "fetch_public_api"],
+                "examples": ["https://api.github.com", "ipify", "jokes"],
             },
             "file_index": {
                 "description": "Read-only file indexing and search (secure, no writes).",
@@ -1116,6 +1144,11 @@ class SemanticKernelApp:
                     "read_file ./README.md",
                     "list_directory .",
                 ],
+            },
+            "export": {
+                "description": "Export conversations to Markdown, JSON, or CSV formats.",
+                "functions": ["export_markdown", "export_json", "export_csv", "create_summary", "export_code_blocks"],
+                "examples": ["export as markdown", "extract code blocks"],
             },
             "personality": {
                 "description": "Adjust AI response personality.",
@@ -1185,11 +1218,15 @@ class SemanticKernelApp:
                 st.warning("Enter a query")
             else:
                 with st.spinner("Searching..."):
+                    if not use_cache:
+                        # Invalidate cache for this query before searching
+                        from semantic_kernel_ui.plugins.websearch import _CACHE
+                        keys_to_remove = [k for k in _CACHE if query in k]
+                        for k in keys_to_remove:
+                            _CACHE.pop(k, None)
                     result = plugin.search_web(
                         query, max_results=max_results, provider_hint=provider
                     )
-                    if not use_cache and "(cached)" in result:
-                        pass  # Placeholder for cache invalidation logic
                     st.text_area("Results", value=result, height=300)
         st.info(
             "Configure SERPAPI_KEY or GOOGLE_CSE_API_KEY + GOOGLE_CSE_ENGINE_ID in environment for real results."
@@ -1228,6 +1265,152 @@ class SemanticKernelApp:
             if st.button("Get Info", key="fs_info"):
                 result = plugin.get_file_info(file_path)
                 st.text_area("File Information", value=result, height=200)
+
+    def _render_datetime_plugin(self, plugin: DateTimePlugin) -> None:
+        tab_now, tab_diff, tab_add, tab_format, tab_tz = st.tabs(
+            ["Current Time", "Date Diff", "Add Days", "Format", "Timezone"]
+        )
+        with tab_now:
+            tz = st.text_input("Timezone", value="UTC", placeholder="e.g. Europe/Helsinki")
+            if st.button("Get Time", key="dt_now"):
+                st.success(plugin.get_current_time(tz))
+        with tab_diff:
+            col1, col2 = st.columns(2)
+            with col1:
+                d1 = st.text_input("Date 1 (YYYY-MM-DD)", value="2024-01-01", key="dt_d1")
+            with col2:
+                d2 = st.text_input("Date 2 (YYYY-MM-DD)", value="2024-12-31", key="dt_d2")
+            if st.button("Calculate Difference", key="dt_diff"):
+                st.success(plugin.calculate_date_diff(d1, d2))
+        with tab_add:
+            col1, col2 = st.columns(2)
+            with col1:
+                d = st.text_input("Date (YYYY-MM-DD)", value="2024-06-15", key="dt_add_d")
+            with col2:
+                days = st.number_input("Days to add", value=30, step=1, key="dt_add_n")
+            if st.button("Add Days", key="dt_add"):
+                st.success(plugin.add_days(d, int(days)))
+        with tab_format:
+            d = st.text_input("Date (YYYY-MM-DD)", value="2024-06-15", key="dt_fmt_d")
+            style = st.selectbox("Style", ["long", "short", "iso", "us"], key="dt_fmt_s")
+            if st.button("Format", key="dt_fmt"):
+                st.success(plugin.format_date(d, style))
+        with tab_tz:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                t = st.text_input("Time (HH:MM)", value="12:00", key="dt_tz_t")
+            with col2:
+                from_tz = st.text_input("From TZ", value="UTC", key="dt_tz_from")
+            with col3:
+                to_tz = st.text_input("To TZ", value="Europe/Helsinki", key="dt_tz_to")
+            if st.button("Convert", key="dt_tz"):
+                st.success(plugin.convert_timezone(t, from_tz, to_tz))
+
+    def _render_text_processing_plugin(self, plugin: TextProcessingPlugin) -> None:
+        tab_count, tab_json, tab_b64, tab_hash, tab_case = st.tabs(
+            ["Word Count", "JSON Format", "Base64", "Hash", "Case Convert"]
+        )
+        with tab_count:
+            text = st.text_area("Text", placeholder="Enter text to analyze", key="tp_count_text", height=150)
+            if st.button("Analyze", key="tp_count"):
+                if text:
+                    st.text(plugin.count_words(text))
+                else:
+                    st.warning("Enter some text")
+        with tab_json:
+            json_text = st.text_area("JSON", placeholder='{"key": "value"}', key="tp_json_text", height=150)
+            if st.button("Format JSON", key="tp_json"):
+                if json_text:
+                    st.text(plugin.format_json(json_text))
+                else:
+                    st.warning("Enter JSON text")
+        with tab_b64:
+            col1, col2 = st.columns(2)
+            with col1:
+                enc_text = st.text_input("Text to encode", key="tp_b64_enc")
+                if st.button("Encode", key="tp_b64_enc_btn"):
+                    st.success(plugin.encode_base64(enc_text))
+            with col2:
+                dec_text = st.text_input("Base64 to decode", key="tp_b64_dec")
+                if st.button("Decode", key="tp_b64_dec_btn"):
+                    st.success(plugin.decode_base64(dec_text))
+        with tab_hash:
+            text = st.text_input("Text to hash", key="tp_hash_text")
+            algo = st.selectbox("Algorithm", ["sha256", "sha512", "md5"], key="tp_hash_algo")
+            if st.button("Generate Hash", key="tp_hash"):
+                if text:
+                    st.code(plugin.generate_hash(text, algo))
+                else:
+                    st.warning("Enter text to hash")
+        with tab_case:
+            text = st.text_input("Text", key="tp_case_text")
+            case = st.selectbox("Case", ["upper", "lower", "title", "sentence"], key="tp_case_type")
+            if st.button("Convert", key="tp_case"):
+                if text:
+                    st.success(plugin.convert_case(text, case))
+                else:
+                    st.warning("Enter text")
+
+    def _render_http_api_plugin(self, plugin: HttpApiPlugin) -> None:
+        tab_get, tab_status, tab_public = st.tabs(["HTTP GET", "Check Status", "Public APIs"])
+        with tab_get:
+            url = st.text_input("URL", placeholder="https://api.github.com", key="http_get_url")
+            if st.button("Fetch", key="http_get_btn"):
+                if url.strip():
+                    with st.spinner("Fetching..."):
+                        result = plugin.http_get(url.strip())
+                        st.text_area("Response", value=result, height=300)
+                else:
+                    st.warning("Enter a URL")
+        with tab_status:
+            url = st.text_input("URL", placeholder="https://example.com", key="http_status_url")
+            if st.button("Check", key="http_status_btn"):
+                if url.strip():
+                    with st.spinner("Checking..."):
+                        result = plugin.check_url_status(url.strip())
+                        st.text(result)
+                else:
+                    st.warning("Enter a URL")
+        with tab_public:
+            api = st.selectbox("API", ["ipify", "time", "jokes"], key="http_public_api")
+            if st.button("Fetch", key="http_public_btn"):
+                with st.spinner("Fetching..."):
+                    result = plugin.fetch_public_api(api)
+                    st.text_area("Response", value=result, height=200)
+
+    def _render_export_plugin(self, plugin: ExportPlugin) -> None:
+        st.caption("Provide conversation messages as JSON to export in different formats")
+        messages_json = st.text_area(
+            "Messages JSON",
+            placeholder='[{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]',
+            height=150,
+            key="export_msgs",
+        )
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            if st.button("Markdown", key="export_md"):
+                if messages_json.strip():
+                    st.text_area("Result", value=plugin.export_markdown(messages_json), height=300, key="export_md_result")
+                else:
+                    st.warning("Enter messages JSON")
+        with col2:
+            if st.button("JSON", key="export_json_btn"):
+                if messages_json.strip():
+                    st.text_area("Result", value=plugin.export_json(messages_json), height=300, key="export_json_result")
+                else:
+                    st.warning("Enter messages JSON")
+        with col3:
+            if st.button("Summary", key="export_summary"):
+                if messages_json.strip():
+                    st.text_area("Result", value=plugin.create_summary(messages_json), height=300, key="export_summary_result")
+                else:
+                    st.warning("Enter messages JSON")
+        with col4:
+            if st.button("Code Blocks", key="export_code"):
+                if messages_json.strip():
+                    st.text_area("Result", value=plugin.export_code_blocks(messages_json), height=300, key="export_code_result")
+                else:
+                    st.warning("Enter messages JSON")
 
     def _render_personality_plugin(self, plugin: PersonalityPlugin) -> None:
         personalities = ["friendly", "professional", "creative", "technical", "casual"]
